@@ -1,0 +1,110 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+ 
+
+```{r}
+library(tidyverse)
+library(caret)
+library(mice)
+```
+
+
+
+```{r}
+url <- 'https://raw.githubusercontent.com/dcorrea614/DATA622/main/HW3/Loan_approval.csv'
+dataset <- read_csv(url)
+head(dataset)
+```
+
+```{r}
+summary(dataset)
+```
+
+```{r}
+dataset_missing_counts <- sapply(dataset, function(x) sum(is.na(x))) %>% 
+  sort(decreasing = TRUE) %>%
+  as.data.frame() %>%
+  rename('NA_Count' ='.') 
+
+dataset_missing_counts <- dataset_missing_counts%>%
+  mutate('Feature' = rownames(dataset_missing_counts))
+
+ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))) + 
+  geom_bar(stat = 'identity', fill = 'steelblue') +
+  labs(title = 'Missing Counts') +
+  theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
+```
+
+```{r}
+cat_vars <- dataset %>%
+  select(-c('Loan_ID', 'ApplicantIncome', 'CoapplicantIncome','LoanAmount','Loan_Amount_Term')) %>%
+  gather(key = 'predictor_variable', value = 'value', -Loan_Status)
+
+# Plot and print a histogram for each predictor variable.
+ggplot(cat_vars) +
+  geom_histogram(aes(x = value, fill = Loan_Status),stat='count', bins = 30) +
+  labs(title = 'Distributions of Categorical Variables') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_wrap(. ~predictor_variable, scales = 'free', ncol = 3)
+```
+
+```{r}
+cont_vars <- dataset %>%
+  select(ApplicantIncome, CoapplicantIncome, LoanAmount, Loan_Amount_Term, Loan_Status) %>%
+  gather(key = 'predictor_variable', value = 'value', -Loan_Status)
+
+# Plot and print a histogram for each predictor variable.
+ggplot(cont_vars) +
+  geom_histogram(aes(x = value, y = ..density.., fill = Loan_Status), bins = 30) +
+  labs(title = 'Log Distributions of Continuous Variables') +
+  scale_x_log10() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_wrap(. ~predictor_variable, scales = 'free', ncol = 3)
+```
+
+```{r}
+#transformation
+#Loan_ID should be removed before imputing data
+#mice uses all data to impute
+#Transforming continuous variables by taking the log
+
+dataset <- dataset %>%
+  select(-'Loan_ID') %>%
+  mutate(
+    Gender = as.factor(Gender),
+    Married = as.factor(Married),
+    Dependents = as.factor(Dependents),
+    Self_Employed = as.factor(Self_Employed),
+    Credit_History = as.factor(Credit_History),
+    ApplicantIncome = log(ApplicantIncome),
+    CoapplicantIncome = log(CoapplicantIncome),
+    LoanAmount = log(LoanAmount),
+    Loan_Amount_Term = log(Loan_Amount_Term)
+  )
+```
+
+
+
+```{r}
+#imputation by using the random forest method ('rf')
+init <- mice(dataset, maxit = 0)
+predM <- init$predictorMatrix
+
+set.seed(123)
+imputed <- mice(dataset, method = 'rf', predictorMatrix = predM, m=5)
+```
+
+```{r}
+dataset <- complete(imputed)
+
+summary(dataset)
+```
+
+```{r} 
+# none of the variables meet the condition to be a degenerate feature
+nearZeroVar(dataset)
+```
+
