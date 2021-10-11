@@ -1,6 +1,6 @@
 ---
 title: "DATA 622 - Homework3 - Loan Approval Prediction"
-author: "Diego Correa, Amanda Schettini & Soumya Ghosh"
+author: "Group1: Diego Correa, Amanda Schettini, Soumya Ghosh & Atina Karim"
 date: "October 10, 2021"
 always_allow_html: yes
 output:
@@ -39,7 +39,8 @@ library(randomForest)
 For this assignment, we will be working with a dataset on loan approval status. The **'Loan_Status'** is the target variable here -
 
 ### Data Dictionary
-![**Loan Approval Status Data Dictionary**](C:\Users\soumya.ghosh\OneDrive - Slalom\Work Backup\CUNY\Semester7(Fall)\Homework\Homework3\Images\DataDictionary.PNG)
+
+![**Loan Approval Status Data Dictionary**](https://github.com/dcorrea614/DATA622/blob/main/HW3/Images/DataDictionary.PNG?raw=true)
 
 ### Problem Statement
 
