@@ -1,44 +1,73 @@
 ---
-title: "R Notebook"
-output: html_notebook
+title: "DATA 622 - Homework3 - Loan Approval Prediction"
+author: "Group1: Diego Correa, Amanda Schettini, Soumya Ghosh & Atina Karim"
+date: "October 10, 2021"
+always_allow_html: yes
+output:
+  html_document:
+    df_print: kable
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true
+    toc_float:
+      collapsed: true
+    toc_depth: 5
+  pdf_document: default
 ---
 
- 
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-```{r}
+## Libraries
+
+```{r warning=FALSE, message=FALSE}
+library(kableExtra)
 library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(psych)
 library(caret)
 library(mice)
+library(randomForest)
+
 ```
 
+## Background
 
+For this assignment, we will be working with a dataset on loan approval status. The **'Loan_Status'** is the target variable here -
 
-```{r}
-url <- 'https://raw.githubusercontent.com/dcorrea614/DATA622/main/HW3/Loan_approval.csv'
-dataset <- read_csv(url)
-head(dataset)
+### Data Dictionary
+
+![**Loan Approval Status Data Dictionary**](https://github.com/dcorrea614/DATA622/blob/main/HW3/Images/DataDictionary.PNG?raw=true)
+
+### Problem Statement
+
+1. As we begin working with the dataset, we will conduct a thorough exploratory data analysis. This step is necessary as we figure out which variables should be included in models. (10 points)
+2. We will use the LDA algorithm to predict the loan approval status. This will include the walk through for the steps we took, and how we decided on the key variables. (40 points)
+3. Use K-nearest neighbor (KNN) algorithm to predict the species variable. Please be sure to walk through the steps you took. This includes talking about what value for ‘k’ you settled on and why. (40 points)
+4. Use Decision Trees to predict on loan approval status. (40 points)
+5. Use Random Forests to predict on loan approval status. (40 points)
+6. Model performance: Comparison of the models we settled on in problem # 2- 5. Comment on their relative performance. Which one would you prefer the most? Why? (5 points)
+
+## Dataset
+
+```{r warning=FALSE, message=FALSE}
+dataset <- read_csv('Loan_approval.csv')
+head(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="100%",height="300px")
 ```
 
-```{r}
-summary(dataset)
+### Descriptive Dataset Summary
+
+```{r warning=FALSE, message=FALSE}
+summary(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
-```{r}
-dataset_missing_counts <- sapply(dataset, function(x) sum(is.na(x))) %>% 
-  sort(decreasing = TRUE) %>%
-  as.data.frame() %>%
-  rename('NA_Count' ='.') 
+## Exploratory Data Analysis
 
-dataset_missing_counts <- dataset_missing_counts%>%
-  mutate('Feature' = rownames(dataset_missing_counts))
-
-ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))) + 
-  geom_bar(stat = 'identity', fill = 'steelblue') +
-  labs(title = 'Missing Counts') +
-  theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
-```
-
-```{r}
+```{r message=FALSE, warning=FALSE, fig.width=10}
 cat_vars <- dataset %>%
   select(-c('Loan_ID', 'ApplicantIncome', 'CoapplicantIncome','LoanAmount','Loan_Amount_Term')) %>%
   gather(key = 'predictor_variable', value = 'value', -Loan_Status)
@@ -51,7 +80,7 @@ ggplot(cat_vars) +
   facet_wrap(. ~predictor_variable, scales = 'free', ncol = 3)
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE, fig.width=10}
 cont_vars <- dataset %>%
   select(ApplicantIncome, CoapplicantIncome, LoanAmount, Loan_Amount_Term, Loan_Status) %>%
   gather(key = 'predictor_variable', value = 'value', -Loan_Status)
@@ -65,46 +94,121 @@ ggplot(cont_vars) +
   facet_wrap(. ~predictor_variable, scales = 'free', ncol = 3)
 ```
 
-```{r}
+## Pre-Processing
+
+### Missing Value Analysis
+
+```{r message=FALSE, warning=FALSE}
+## Counts of missing data per feature
+dataset_missing_counts <- data.frame(apply(dataset, 2, function(x) length(which(is.na(x)))))
+dataset_missing_pct <- data.frame(apply(dataset, 2,function(x) {sum(is.na(x)) / length(x) * 100}))
+
+dataset_missing_counts <- cbind(Feature = rownames(dataset_missing_counts), dataset_missing_counts, dataset_missing_pct)
+colnames(dataset_missing_counts) <- c('Feature','NA_Count','NA_Percentage')
+rownames(dataset_missing_counts) <- NULL
+
+
+dataset_missing_counts %>% filter(`NA_Count` != 0) %>% arrange(desc(`NA_Count`)) %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
+
+ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))) + 
+  geom_bar(stat = 'identity', fill = 'steelblue') +
+  labs(title = 'Missing Counts') +
+  theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
+
+```
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+dataset_missing_counts <- sapply(dataset, function(x) sum(is.na(x))) %>% 
+  sort(decreasing = TRUE) %>%
+  as.data.frame() %>% rename('NA_Count' ='.') 
+
+dataset_missing_counts <- dataset_missing_counts%>%
+  mutate('Feature' = rownames(dataset_missing_counts))
+
+ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))) + 
+  geom_bar(stat = 'identity', fill = 'steelblue') +
+  labs(title = 'Missing Counts') +
+  theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
+```
+
+### Data Imputation 
+
+```{r message=FALSE, warning=FALSE}
 #transformation
 #Loan_ID should be removed before imputing data
 #mice uses all data to impute
 #Transforming continuous variables by taking the log
-
 dataset <- dataset %>%
   select(-'Loan_ID') %>%
   mutate(
     Gender = as.factor(Gender),
     Married = as.factor(Married),
     Dependents = as.factor(Dependents),
+    Education = as.factor(Education),
     Self_Employed = as.factor(Self_Employed),
     Credit_History = as.factor(Credit_History),
+    Property_Area = as.factor(Property_Area),
+    Loan_Status = as.factor(Loan_Status),
     ApplicantIncome = log(ApplicantIncome),
     CoapplicantIncome = log(CoapplicantIncome),
     LoanAmount = log(LoanAmount),
     Loan_Amount_Term = log(Loan_Amount_Term)
-  )
+  ) %>%
+  mutate(CoapplicantIncome = ifelse(CoapplicantIncome < 0, 0, CoapplicantIncome))
 ```
 
 
 
-```{r}
+```{r message=FALSE, warning=FALSE, results='hide'}
 #imputation by using the random forest method ('rf')
 init <- mice(dataset, maxit = 0)
 predM <- init$predictorMatrix
-
 set.seed(123)
 imputed <- mice(dataset, method = 'rf', predictorMatrix = predM, m=5)
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 dataset <- complete(imputed)
-
 summary(dataset)
 ```
 
-```{r} 
+```{r message=FALSE, warning=FALSE} 
 # none of the variables meet the condition to be a degenerate feature
 nearZeroVar(dataset)
 ```
 
+### Splitting Data
+
+
+```{r}
+sample = sample.split(dataset$Loan_Status, SplitRatio = 0.75)
+
+train = subset(dataset, sample == TRUE)
+test = subset(dataset, sample == FALSE)
+```
+
+
+
+### Random Forest
+
+
+```{r}
+# Finding best mtry to use in random forest model by evaluating using the lowest OOB error
+mtry <- tuneRF(train[-12],train$Loan_Status, ntreeTry=500,
+               stepFactor=1.5,improve=0.01, trace=TRUE, plot=TRUE)
+best.m <- mtry[mtry[, 2] == min(mtry[, 2]), 1]
+print(mtry)
+print(best.m)
+```
+
+```{r}
+# Using best mtry in model, plotting importance
+set.seed(71)
+rf <-randomForest(Loan_Status~.,data=train, mtry=best.m, importance=TRUE,ntree=500)
+print(rf)
+```
+
+```{r}
+#Evaluate variable importance
+varImpPlot(rf)
+```
