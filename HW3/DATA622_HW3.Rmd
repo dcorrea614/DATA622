@@ -31,6 +31,7 @@ library(psych)
 library(caret)
 library(mice)
 library(randomForest)
+library(caTools)
 
 ```
 
@@ -185,6 +186,9 @@ sample = sample.split(dataset$Loan_Status, SplitRatio = 0.75)
 
 train = subset(dataset, sample == TRUE)
 test = subset(dataset, sample == FALSE)
+
+train %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="100%",height="300px")
 ```
 
 
