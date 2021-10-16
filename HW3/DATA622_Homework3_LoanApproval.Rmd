@@ -1,6 +1,6 @@
 ---
 title: "DATA 622 - Homework3 - Loan Approval Prediction"
-author: "Group1: Diego Correa, Amanda Schettini, Soumya Ghosh & Atina Karim"
+author: "Group1: Diego Correa, Amanda Arce, Soumya Ghosh & Atina Karim"
 date: "October 10, 2021"
 always_allow_html: yes
 output:
@@ -295,6 +295,37 @@ test1 <- test[,-12]
 ```
 
 ### Model1: LDA Algorithm
+
+
+```{r}
+#convert loan_status variable as factor to work with LDA model
+train$Loan_Status <- factor(train$Loan_Status)
+```
+
+```{r}
+library(caret)
+#create lda model using caret's train()
+lda <- caret::train(Loan_Status ~ .,
+             train, method = 'lda', trControl = trainControl(method = "cv"))
+#output lda
+lda
+```
+```{r}
+#run summary on lda model using lda variable
+summary(lda)
+```
+```{r}
+#create variable called pred.Loan_status to make prediction on test data using the lda (variable/model) model we made
+pred.Loan_Status = predict(lda, test)
+#organize results in a table
+table(pred.Loan_Status, test$Loan_Status)
+```
+
+```{r}
+#create variable called pred.accuracy to show accuracy - accuracy in this case being 82.47
+pred.accuracy = round(mean(pred.Loan_Status == test$Loan_Status)*100,2)
+pred.accuracy
+```
 
 ### Model2: K-nearest neighbor (KNN) algorithm
 
