@@ -1,0 +1,390 @@
+
+---
+title: "DATA 622 - Homework3 - Loan Approval Prediction"
+author: "Group1: Diego Correa, Amanda Schettini, Soumya Ghosh & Atina Karim"
+date: "October 10, 2021"
+always_allow_html: yes
+output:
+  html_document:
+    df_print: kable
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true
+    toc_float:
+      collapsed: true
+    toc_depth: 5
+  pdf_document: default
+---
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+
+```{r warning=FALSE, message=FALSE}
+library(kableExtra)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(psych)
+library(caret)
+library(mice)
+library(randomForest)
+library(caTools)
+library(corrplot)
+library(class)
+library(MASS)
+```
+
+## Background
+
+For this assignment, we will be working with a dataset on loan approval status. The **'Loan_Status'** is the target variable here -
+
+### Data Dictionary
+
+![**Loan Approval Status Data Dictionary**](https://github.com/dcorrea614/DATA622/blob/main/HW3/Images/DataDictionary.PNG?raw=true)
+
+### Problem Statement
+
+1. As we begin working with the dataset, we will conduct a thorough exploratory data analysis. This step is necessary as we figure out which variables should be included in models. (10 points)
+2. We will use the LDA algorithm to predict the loan approval status. This will include the walk through for the steps we took, and how we decided on the key variables. (40 points)
+3. Use K-nearest neighbor (KNN) algorithm to predict the loan approval status variable. Please be sure to walk through the steps you took. This includes talking about what value for ‘k’ you settled on and why. (40 points)
+4. Use Decision Trees to predict on loan approval status. (40 points)
+5. Use Random Forests to predict on loan approval status. (40 points)
+6. Model performance: Comparison of the models we settled on in problem # 2- 5. Comment on their relative performance. Which one would you prefer the most? Why? (5 points)
+
+## Dataset
+
+```{r warning=FALSE, message=FALSE}
+dataset <- read_csv('Loan_approval.csv')
+head(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="100%",height="300px")
+```
+
+### Descriptive Dataset Summary
+
+```{r warning=FALSE, message=FALSE}
+summary(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+```
+
+
+## Pre-Processing
+
+### Missing Value Analysis
+
+Based on the above descriptive data summary, there are quite a few variables with missing values. So we conducted an analysis of all missing values in various attributes to identify proper imputation technique.
+
+```{r message=FALSE, warning=FALSE, fig.height=4}
+## Counts of missing data per feature
+dataset_missing_counts <- data.frame(apply(dataset, 2, function(x) length(which(is.na(x)))))
+dataset_missing_pct <- data.frame(apply(dataset, 2,function(x) {sum(is.na(x)) / length(x) * 100}))
+dataset_missing_counts <- cbind(Feature = rownames(dataset_missing_counts), dataset_missing_counts, dataset_missing_pct)
+colnames(dataset_missing_counts) <- c('Feature','NA_Count','NA_Percentage')
+rownames(dataset_missing_counts) <- NULL
+dataset_missing_counts %>% filter(`NA_Count` != 0) %>% arrange(desc(`NA_Count`)) %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
+ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))) + 
+  geom_bar(stat = 'identity', fill = 'steelblue') +
+  labs(title = 'Missing Counts') +
+  theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
+```
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+dataset_missing_counts <- sapply(dataset, function(x) sum(is.na(x))) %>% 
+  sort(decreasing = TRUE) %>%
+  as.data.frame() %>% rename('NA_Count' ='.') 
+
+dataset_missing_counts <- dataset_missing_counts%>%
+  mutate('Feature' = rownames(dataset_missing_counts))
+ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))) + 
+  geom_bar(stat = 'identity', fill = 'steelblue') +
+  labs(title = 'Missing Counts') +
+  theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
+```
+
+### Data Imputation 
+
+```{r message=FALSE, warning=FALSE}
+#transformation
+#Loan_ID should be removed before imputing data
+#mice uses all data to impute
+#Transforming continuous variables by taking the log
+dataset <- dataset %>%
+  dplyr::select(-'Loan_ID') %>%
+  mutate(
+    Gender = as.factor(Gender),
+    Married = as.factor(Married),
+    Dependents = as.factor(Dependents),
+    Education = as.factor(Education),
+    Self_Employed = as.factor(Self_Employed),
+    Credit_History = as.factor(Credit_History),
+    Property_Area = as.factor(Property_Area),
+    Loan_Status = as.factor(Loan_Status)
+  #  ApplicantIncome = log(ApplicantIncome),
+  #  CoapplicantIncome = log(CoapplicantIncome),
+   # LoanAmount = log(LoanAmount)
+    #Loan_Amount_Term = log(Loan_Amount_Term)
+  )
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+#imputation by using the random forest method ('rf')
+init <- mice(dataset, maxit = 0)
+predM <- init$predictorMatrix
+set.seed(123)
+imputed <- mice(dataset, method = 'rf', predictorMatrix = predM, m=5)
+```
+
+```{r message=FALSE, warning=FALSE}
+dataset <- complete(imputed)
+summary(dataset)
+```
+
+```{r message=FALSE, warning=FALSE} 
+# none of the variables meet the condition to be a degenerate feature
+nearZeroVar(dataset)
+```
+
+## Exploratory Data Analysis
+
+### Categorical Variables
+
+```{r message=FALSE, warning=FALSE, fig.height=6, fig.width=10}
+cat_vars <- dataset %>%
+  dplyr::select(-c('ApplicantIncome', 'CoapplicantIncome','LoanAmount','Loan_Amount_Term')) %>%
+  gather(key = 'predictor_variable', value = 'value', -Loan_Status)
+# Plot and print a histogram for each predictor variable.
+ggplot(cat_vars) +
+  geom_histogram(aes(x = value, fill = Loan_Status),stat='count', bins = 30) +
+  labs(title = 'Distributions of Categorical Variables') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_wrap(. ~predictor_variable, scales = 'free', ncol = 3)
+```
+
+
+### Continuous Variables
+
+```{r message=FALSE, warning=FALSE, fig.width=10}
+cont_vars <- dataset %>%
+  dplyr::select(ApplicantIncome, CoapplicantIncome, LoanAmount, Loan_Amount_Term, Loan_Status) %>%
+  gather(key = 'predictor_variable', value = 'value', -Loan_Status)
+# Plot and print a histogram for each predictor variable.
+ggplot(cont_vars) +
+  geom_histogram(aes(x = value, y = ..density.., fill = Loan_Status), bins = 30) +
+  labs(title = 'Log Distributions of Continuous Variables') +
+  scale_x_log10() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_wrap(. ~predictor_variable, scales = 'free', ncol = 2)
+```
+
+### Observations:
+
+ - More males have applied for loans than females and and they also have a higher rate of approval.
+ - More married couples have applied for loans. 
+ - Self employed individuals have applied for less loans which indicates salary earners apply for and obtain more loans. 
+ - People with better credit history guidelines are more likely to get their loans approved as they have higher chances of paying back the loan on time.
+ - People leaving in Semi-Urban area have most loan applications and have a higher rate of approval followed by urban and rural areas. Especially Rural loan applicants have a lower rate of loan approval.
+ - An extremely high number of them go for a 360 months loan term. That’s pay back within a 15 years period.
+ - People with *no dependents* tend to have applied for more loan applications
+ - People with a graduate degree have applied for more loans than w/o a graduate degree and have much higher rate of loan approvals.
+ 
+### Further Analysis
+ 
+```{r message=FALSE, warning=FALSE, fig.height=4, fig.width=8}
+# Plot and print a histogram for a pair of predictor variables.
+bp <- ggplot(dataset, aes(x = ApplicantIncome)) +
+  geom_histogram(bins = 30, color = "darkblue", fill = "lightblue") +
+  labs(title = 'Distributions of Applicant Income By Gender and Marriage Status') +
+  theme(plot.title = element_text(hjust = 0.5)) 
+bp + facet_grid(Gender ~ Married, labeller=label_both) 
+```
+
+```{r message=FALSE, warning=FALSE, fig.height=4, fig.width=8}
+# Plot and print a histogram for each predictor variable.
+bp <- ggplot(dataset, aes(x = ApplicantIncome)) +
+  geom_histogram(bins = 30, color = "darkblue", fill = "lightblue") +
+  labs(title = 'Distributions of Applicant Income By Education and Self-Employed') +
+  theme(plot.title = element_text(hjust = 0.5)) 
+bp + facet_grid(Education ~ Self_Employed, labeller=label_both) 
+```
+
+```{r message=FALSE, warning=FALSE, fig.height=5, fig.width=8}
+# Plot and print a histogram for each predictor variable.
+bp <- ggplot(dataset, aes(x = ApplicantIncome)) +
+  geom_histogram(bins = 30, color = "darkblue", fill = "lightblue") +
+  labs(title = 'Distributions of Applicant Income By Dependents and Property_Area') +
+  theme(plot.title = element_text(hjust = 0.5)) 
+bp + facet_grid(Dependents ~ Property_Area, labeller=label_both) 
+```
+
+
+## Feature Engineering
+
+Converting all categorical variables present in the dataset to numeric codes -
+
+```{r}
+# Caret package dummyVars() to do one hot encoding
+#dummy <- dummyVars(" ~ .", data=dataset)
+#newdata <- data.frame(predict(dummy, newdata = dataset))
+# Converting categorical variables to numeric
+newdata <- dataset %>% mutate_if(is.factor, as.numeric)
+```
+
+
+```{r}
+newdata <- newdata %>%
+  mutate(
+    ApplicantIncome = log(ApplicantIncome),
+    CoapplicantIncome = log(CoapplicantIncome),
+    LoanAmount = log(LoanAmount),
+    Loan_Amount_Term = log(Loan_Amount_Term))
+newdata <- newdata %>%
+  mutate(CoapplicantIncome = ifelse(CoapplicantIncome < 0, 0, CoapplicantIncome))
+    
+head(newdata) %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="100%",height="300px")
+```
+
+
+### Correlation Plot: Multicollinearity Check
+
+```{r fig.height=6, fig.width=7, message=FALSE, warning=FALSE}
+corrMatrix <- round(cor(newdata),4)
+corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
+```
+
+Based on above plot, it can be concluded there is no multicollinearity present in the dataset. There are certain variable pairs like **LoanAmount & ApplicantIncome** and **Credit_History & Loan_Status** that have higher correlation due to obvious reasons.
+
+## Model Building
+
+### Splitting Data: Train/Test
+
+```{r}
+sample = sample.split(newdata$Loan_Status, SplitRatio = 0.75)
+train = subset(newdata, sample == TRUE)
+test = subset(newdata, sample == FALSE)
+#head(train)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
+#Creating seperate dataframe for 'Loan_Status' feature which is our target.
+train.loan_labels <- train[,12]
+test.loan_labels <- test[,12]
+train1 <- train[,-12]
+test1 <- test[,-12]
+```
+
+### Model1: LDA Algorithm
+
+```{r}
+#convert loan_status variable as factor to work with LDA model
+train$Loan_Status <- factor(train$Loan_Status)
+```
+
+```{r}
+library(caret)
+#create lda model using caret's train()
+lda <- caret::train(Loan_Status ~ .,
+             train, method = 'lda', trControl = trainControl(method = "cv"))
+#output lda
+lda
+```
+```{r}
+#run summary on lda model using lda variable
+summary(lda)
+```
+```{r}
+#create variable called pred.Loan_status to make prediction on test data using the lda (variable/model) model we made
+pred.Loan_Status = predict(lda, test)
+
+#organize results in a table
+table(pred.Loan_Status, test$Loan_Status)
+
+```
+
+```{r}
+#create variable called pred.accuracy to show accuracy - accuracy in this case being 82.47
+pred.accuracy = round(mean(pred.Loan_Status == test$Loan_Status)*100,2)
+pred.accuracy
+
+```
+
+
+### Model2: K-nearest neighbor (KNN) algorithm
+
+```{r}
+#Find the number of observation
+NROW(train$Loan_Status)
+```
+
+So, we have 460 observations in our training data set. The square root of 460 is around 21.45, therefore we’ll create two models. One with ‘K’ value as 21 and the other model with a ‘K’ value as 22.
+
+
+```{r}
+knn.21 <- knn(train=train1, test=test1, cl=train.loan_labels, k=21)
+knn.22 <- knn(train=train1, test=test1, cl=train.loan_labels, k=22)
+#Calculate the proportion of correct classification for k = 21, 22
+ACC.21 <- 100 * sum(test.loan_labels == knn.21)/NROW(test.loan_labels)
+ACC.22 <- 100 * sum(test.loan_labels == knn.22)/NROW(test.loan_labels)
+# Print Accuracy Scores
+ACC.21
+ACC.22
+# Check prediction against actual value in tabular form for k=21
+table(knn.21 ,test.loan_labels)
+# Check prediction against actual value in tabular form for k=22
+confusionMatrix(table(knn.22 ,test.loan_labels))
+```
+
+#### Model Optimization
+
+In order to improve the accuracy of the model, you can use n number of techniques such as the Elbow method and maximum percentage accuracy graph.  In the below code snippet, I’ve created a loop that calculates the accuracy of the KNN model for ‘K’ values ranging from 1 to 25. This way you can check which ‘K’ value will result in the most accurate model:
+
+```{r}
+i=1
+k.optm=1
+for (i in 1:27){
+ knn.mod <- knn(train=train1, test=test1, cl=train.loan_labels, k=i)
+ k.optm[i] <- 100 * sum(test.loan_labels == knn.mod)/NROW(test.loan_labels)
+ k=i
+ cat(k,'=',k.optm[i],'
+')
+}
+```
+
+#### Accuracy Plot
+
+```{r}
+#Accuracy plot
+plot(k.optm, type="b", xlab="K- Value",ylab="Accuracy level")
+```
+
+### Model3: Decision Tree
+
+### Model4: Random Forest
+
+```{r}
+# Finding best mtry to use in random forest model by evaluating using the lowest OOB error
+mtry <- randomForest::tuneRF(train[-12],train$Loan_Status, ntreeTry=500,
+               stepFactor=1.5,improve=0.01, trace=TRUE, plot=TRUE)
+best.m <- mtry[mtry[, 2] == min(mtry[, 2]), 1]
+print(mtry)
+print(best.m)
+```
+
+```{r}
+# Using best mtry in model, plotting importance
+set.seed(71)
+rf <-randomForest(Loan_Status~.,data=train, mtry=best.m, importance=TRUE,ntree=500)
+print(rf)
+```
+
+```{r}
+#Evaluate variable importance
+varImpPlot(rf)
+```
+
+
+## Model Performance Comparision
+
+## Conclusion
+
