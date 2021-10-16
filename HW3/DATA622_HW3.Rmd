@@ -68,6 +68,8 @@ summary(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "
 
 ## Exploratory Data Analysis
 
+ We will evaluate loan status by the categorical variables. Blue bars indicate total amount of loan approvals relative to the pink bars, which are loan denials.
+
 ```{r message=FALSE, warning=FALSE, fig.width=10}
 cat_vars <- dataset %>%
   select(-c('Loan_ID', 'ApplicantIncome', 'CoapplicantIncome','LoanAmount','Loan_Amount_Term')) %>%
