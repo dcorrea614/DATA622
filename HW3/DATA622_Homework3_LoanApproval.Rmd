@@ -34,6 +34,8 @@ library(randomForest)
 library(caTools)
 library(corrplot)
 library(class)
+library(rpart)
+library(rpart.plot)
 
 ```
 
@@ -155,6 +157,7 @@ nearZeroVar(dataset)
 ## Exploratory Data Analysis
 
 ### Categorical Variables
+We will evaluate loan status by the categorical variables. Blue bars indicate total amount of loan approvals relative to the pink bars, which are loan denials.
 
 ```{r message=FALSE, warning=FALSE, fig.height=6, fig.width=10}
 cat_vars <- dataset %>%
@@ -380,6 +383,90 @@ plot(k.optm, type="b", xlab="K- Value",ylab="Accuracy level")
 ```
 
 ### Model3: Decision Tree
+
+Prior to building our decision tree - we will need to ensure that all categorical variables in our train and test set are coded as factors:
+
+#### Converting Categorical Variables to Factors in Train
+```{r}
+train2 <- train %>%
+  
+  mutate(
+    Gender = as.factor(Gender),
+    Married = as.factor(Married),
+    Dependents = as.factor(Dependents),
+    Education = as.factor(Education),
+    Self_Employed = as.factor(Self_Employed),
+    Credit_History = as.factor(Credit_History),
+    Property_Area = as.factor(Property_Area),
+    Loan_Status = as.factor(Loan_Status))
+```
+
+#### Converting Categorical Variables to Factors in Test
+
+```{r}
+test2 <- test %>%
+  
+  mutate(
+    Gender = as.factor(Gender),
+    Married = as.factor(Married),
+    Dependents = as.factor(Dependents),
+    Education = as.factor(Education),
+    Self_Employed = as.factor(Self_Employed),
+    Credit_History = as.factor(Credit_History),
+    Property_Area = as.factor(Property_Area),
+    Loan_Status = as.factor(Loan_Status))
+```
+
+#### Initial Decision Tree
+
+```{r}
+dt <- rpart(Loan_Status ~ ., 
+               data=train2, method="class")
+
+rpart.plot(dt, nn=TRUE)
+```
+Here are some of the details of the tree:
+
+```{r}
+summary (dt)
+```
+Credit history and income seem to be some of the important predictors for loan approval.
+
+#### Predicting on the Test Data
+
+We are going to apply our tree to the test data and create a confusion table to evaluate the accuracy of the classifications.
+
+```{r}
+tree.pred = predict(dt,test2,type="class") #because we want to predict the class labels
+# Confusion Tree
+confusion(train2$Loan_Status, predict(dt, type = "class"))
+```
+Our model is 83% accurate. This tree was grown to full depth and therefore there might be too many variables. To achieve improved accuracy, we need to prune the tree using the cross-validation:
+
+```{r}
+plotcp(dt)
+dt$cptable
+```
+The plot above shows the cross validated errors against the complexity parameters.
+The curve is at its lowest at 2, so we will prune our tree to a size of 2. At size 2, the error is ~0.638 and cp is 0.01157407
+
+```{r}
+prune_dt=prune(dt,cp=0.01157)
+rpart.plot(prune_dt)
+```
+#### Predicting Pruned Tree on Test Data 
+
+```{r}
+Prune_pred <- predict(prune_dt, 
+                   test2, 
+                   type="class")
+
+confusionMatrix(Prune_pred, test2$Loan_Status)
+```
+Seems like pruning the tree improved model accuracy to 84% with Credit History being the most significant factor in determining loan status.
+
+However, more often than not, trees do not give very good prediction errors. Therefore, we will build out a random forest models which tend to outperform trees in terms of prediction and misclassification errors.
+
 
 ### Model4: Random Forest
 
