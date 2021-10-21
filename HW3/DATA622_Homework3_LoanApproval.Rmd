@@ -470,25 +470,39 @@ However, more often than not, trees do not give very good prediction errors. The
 
 ### Model4: Random Forest
 
+In creating the best random forest model, we want to minimize the OOB error rate by finding the optimal number of variables selected at each split, known as the mtry.  The below code finds the optimal mtry to use in our random forest model.
+
 ```{r}
 # Finding best mtry to use in random forest model by evaluating using the lowest OOB error
-mtry <- randomForest::tuneRF(train[-12],train$Loan_Status, ntreeTry=500,
+mtry <- randomForest::tuneRF(train2[-12],train2$Loan_Status, ntreeTry=500,
                stepFactor=1.5,improve=0.01, trace=TRUE, plot=TRUE)
 best.m <- mtry[mtry[, 2] == min(mtry[, 2]), 1]
 print(mtry)
 print(best.m)
 ```
 
+Once the optimal mtry value is found, we apply it to our model.
+
 ```{r}
 # Using best mtry in model, plotting importance
 set.seed(71)
-rf <-randomForest(Loan_Status~.,data=train, mtry=best.m, importance=TRUE,ntree=500)
+rf <-randomForest(Loan_Status~.,data=train2, mtry=best.m, importance=TRUE,ntree=500)
 print(rf)
 ```
+
+The below graph illustrates the importance of the variables used to predict the Loan Status.  The Mean Decrease Accuracy displays how much the model accuracy decreases if we drop the variable. Here, Credit History is regarded as the most important variable by a wide margin.  The Mean Decrease Gini graph displays the variable importance on the Gini impurity index used for splitting trees. Again, Credit History is the clear leader but with a narrower gap followed by Loan Amount.
 
 ```{r}
 #Evaluate variable importance
 varImpPlot(rf)
+```
+The random forest model we end up using has a accuracy of 81.82% on the test dataset.  Futhermore, the model has a 97.15 speficity rate and 47.92% sensitivity rate. 
+
+
+```{r}
+rf_predict <- predict(rf, newdata = test2)
+rf_conf_matrix <- confusionMatrix(rf_predict, test2$Loan_Status)
+print(rf_conf_matrix)
 ```
 
 
