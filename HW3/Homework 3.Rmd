@@ -525,7 +525,7 @@ tree.pred = predict(dt,test2,type="class") #because we want to predict the class
 confusionMatrix(predict(dt,type="class"), train2$Loan_Status)
 ```
 
-Our model is 83% accurate. This tree was grown to full depth and therefore there might be too many variables. To achieve improved accuracy, we need to prune the tree using the cross-validation:
+Our model is 82% accurate. This tree was grown to full depth and therefore there might be too many variables. To achieve improved accuracy, we need to prune the tree using the cross-validation:
 
 ```{r}
 plotcp(dt)
@@ -549,7 +549,7 @@ Prune_pred <- predict(prune_dt,
 confusionMatrix(Prune_pred, test2$Loan_Status)
 ```
 
-Seems like pruning the tree reduced model accuracy to 80%. So we will stick to base decision tree model.
+Seems like pruning the tree reduced model accuracy to 81%. So we will stick to base decision tree model.
 
 #### Model Summary
 
