@@ -105,11 +105,12 @@ gg_miss_upset(dataset)
 
 ### Data Imputation 
 
+Based on above missing value analysis, we are going to perform data imputation using the  **mice** package following Random Forest method. But before that, we converted all categorical variables into factors -  
+
 ```{r message=FALSE, warning=FALSE}
 #transformation
 #Loan_ID should be removed before imputing data
 #mice uses all data to impute
-#Transforming continuous variables by taking the log
 dataset <- dataset %>%
   select(-'Loan_ID') %>%
   mutate(
@@ -139,7 +140,7 @@ dataset <- complete(imputed)
 summary(dataset)
 ```
 
-We checked for presence of any de-generate variables -  
+We also checked for presence of any de-generate variables and found no such variable present in our dataset -  
 
 ```{r message=FALSE, warning=FALSE} 
 # none of the variables meet the condition to be a degenerate feature
@@ -192,7 +193,7 @@ ggplot(cont_vars) +
  - An extremely high number of them go for a 360 months loan term. That’s pay back within a 15 years period.
  - People with *no dependents* tend to have applied for more loan applications
  - People with a graduate degree have applied for more loans than w/o a graduate degree and have much higher rate of loan approvals.
- - We can see that ApplicantIncome, CoapplicantIncome and LoanAmount are highly right-skewed, with long right tails. Conversely, it looks like Loan_Amount_Term is highly left-skewed, with a long left tail.
+ - We can see that *ApplicantIncome*, *CoapplicantIncome* and *LoanAmount* are highly right-skewed, with long right tails. Conversely, it looks like *Loan_Amount_Term* is highly left-skewed, with a long left tail.
  
 ### Further Analysis
  
@@ -303,11 +304,14 @@ test1 <- test[,-12]
 
 ### Model1: LDA Algorithm
 
+Before we start building the LDA model, we applied some basic transformation.
 
 ```{r}
 #convert loan_status variable as factor to work with LDA model
 train$Loan_Status <- factor(train$Loan_Status)
 ```
+
+We built the LDA model using caret's train() method -
 
 ```{r}
 library(caret)
@@ -317,10 +321,16 @@ lda <- caret::train(Loan_Status ~ .,
 #output lda
 lda
 ```
+
+Below is the summary of the generated model -
+
 ```{r}
 #run summary on lda model using lda variable
 summary(lda)
 ```
+
+Then we checked the prediction against actual value in tabular form -
+
 ```{r}
 #create variable called pred.Loan_status to make prediction on test data using the lda (variable/model) model we made
 pred.Loan_Status = predict(lda, test)
@@ -328,11 +338,15 @@ pred.Loan_Status = predict(lda, test)
 table(pred.Loan_Status, test$Loan_Status)
 ```
 
+We calculated the prediction accuracy -
+
 ```{r}
-#create variable called pred.accuracy to show accuracy - accuracy in this case being 82.47
+#create variable called pred.accuracy to show accuracy - 
 pred.accuracy = round(mean(pred.Loan_Status == test$Loan_Status)*100,2)
 pred.accuracy
 ```
+
+The calculated accuracy in this case being 82.47% which is a pretty good result.
 
 
 #### Model Summary
