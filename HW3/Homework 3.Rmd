@@ -1,19 +1,22 @@
 ---
 title: "DATA 622 - Homework3 - Loan Approval Prediction"
-author: "Group1: Diego Correa, Amanda Arce, Soumya Ghosh & Atina Karim"
+author: 'Group1: Diego Correa, Amanda Arce, Soumya Ghosh & Atina Karim'
 date: "October 10, 2021"
-always_allow_html: yes
 output:
   html_document:
     df_print: kable
     theme: cerulean
     highlight: pygments
     css: ./lab.css
-    toc: true
+    toc: yes
     toc_float:
-      collapsed: true
+      collapsed: yes
     toc_depth: 5
   pdf_document: default
+  word_document:
+    toc: yes
+    toc_depth: '5'
+always_allow_html: yes
 ---
 
 ```{r setup, include=FALSE, warning=FALSE, message=FALSE}
@@ -530,10 +533,10 @@ dt$cptable
 ```
 
 The plot above shows the cross validated errors against the complexity parameters.
-The curve is at its lowest at 2, so we will prune our tree to a size of 2. At size 2, the error is ~0.638 and cp is 0.01157407
+The curve is at its lowest at 2, so we will prune our tree to a size of 2. At size 2, the error is ~0.58 and cp is 0.0138
 
 ```{r}
-prune_dt=prune(dt,cp=0.01157)
+prune_dt=prune(dt,cp=0.0139)
 rpart.plot(prune_dt)
 ```
 
