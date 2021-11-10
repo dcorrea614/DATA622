@@ -1,0 +1,216 @@
+---
+title: "DATA 622 - Homework4 - Mental Health Analysis"
+author: "Group1: Diego Correa, Amanda Arce, Soumya Ghosh & Atina Karim"
+date: "November 08, 2021"
+always_allow_html: yes
+output:
+  html_document:
+    df_print: kable
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true
+    toc_float:
+      collapsed: true
+    toc_depth: 5
+  pdf_document: 
+    number_sections: yes
+    toc: yes
+    toc_depth: 5
+---
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+
+```{r warning=FALSE, message=FALSE}
+library(kableExtra)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(psych)
+library(caret)
+library(mice)
+library(randomForest)
+library(caTools)
+library(corrplot)
+library(class)
+library(rpart)
+library(rpart.plot)
+library(naniar)
+
+```
+
+## Background
+
+For this assignment, we will be working with a very interesting mental health dataset from a real-life research project. All identifying information, of course, has been removed. The attached spreadsheet has the data (the tab name “Data”). The data dictionary is given in the second tab. You can get as creative as you want. The assignment is designed to really get you to think about how you could use different methods.
+
+The target variable is **'Suicide Attempt'**.
+
+### Data Dictionary
+
+![**ADHD Data Dictionary**](https://github.com/dcorrea614/DATA622/blob/main/HW4/Images/Data%20Dictionary%20Pic.PNG)
+
+```{r echo=FALSE, results='asis'}
+cat(
+  '![](https://github.com/dcorrea614/DATA622/blob/main/HW4/Images/Data%20Dictionary%20Pic.PNG',
+  if (knitr::is_html_output()) '?raw=true',
+  '){width=700px}',
+  sep = ''
+)
+```
+
+### Problem Statement
+
+1. Conduct a thorough Exploratory Data Analysis (EDA) to understand the dataset. (20 points)
+2. Use a clustering method to find clusters of patients here. Whether you choose to use k-means
+clustering or hierarchical clustering is up to you as long as you reason through your work. You
+are free to be creative in terms of which variables or some combination of those you want to use. Can you come up with creative names for the profiles you found? (40 points)
+3. Let’s explore using Principal Component Analysis on this dataset. You will note that there are different types of questions in the dataset: column: E-W: ADHD self-report; column X – AM:
+mood disorders questionnaire, column AN-AS: Individual Substance Misuse; etc. You could just
+use ONE of the sets of questionnaire, for example, you can conduct PCA on the ADHD score, or
+mood disorder score, etc. Please reason through your work as you decide on which sets of
+variables you want to use to conduct Principal Component Analysis. What did you learn from the
+PCA? Can you comment on which question may have a heavy bearing on the score? (40 points)
+4. Assume you are modeling whether a patient attempted suicide (column AX). This is a binary
+target variable. Please use Gradient Boosting to predict whether a patient attempts suicides.
+Please use whatever boosting approach you deem appropriate. But please be sure to walk us
+through your steps. (50 points)
+5. Using the same target variable (suicide attempt), please use support vector machine to model this. You might want to consider reducing the number of variables or somehow use extracted
+information from the variables. This can be a really fun modeling task! (50 points)
+
+
+## Dataset
+
+```{r warning=FALSE, message=FALSE}
+dataset <- read_csv('https://raw.githubusercontent.com/dcorrea614/DATA622/main/HW4/ADHD_data.csv')
+head(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="100%",height="300px")
+```
+
+### Descriptive Dataset Summary
+
+```{r warning=FALSE, message=FALSE}
+summary(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+```
+
+
+## Pre-Processing
+
+### Missing Value Analysis
+
+Based on the above descriptive data summary, there are quite a few variables with missing values. So we conducted an analysis of all missing values in various attributes to identify proper imputation technique.
+
+```{r fig.height=4, message=FALSE, warning=FALSE}
+## Counts of missing data per feature
+dataset_missing_counts <- data.frame(apply(dataset, 2, function(x) length(which(is.na(x)))))
+dataset_missing_pct <- data.frame(apply(dataset, 2,function(x) {sum(is.na(x)) / length(x) * 100}))
+
+dataset_missing_counts <- cbind(Feature = rownames(dataset_missing_counts), dataset_missing_counts, dataset_missing_pct)
+colnames(dataset_missing_counts) <- c('Feature','NA_Count','NA_Percentage')
+rownames(dataset_missing_counts) <- NULL
+
+dataset_missing_counts <- dataset_missing_counts %>% filter(`NA_Count` != 0) %>% arrange(desc(`NA_Count`))
+
+dataset_missing_counts  %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
+
+ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))) + 
+  geom_bar(stat = 'identity', fill = 'steelblue') +
+  geom_label(aes(label = NA_Count)) +
+  labs(title = 'Missing Counts') +
+  theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
+
+```
+
+
+```{r}
+# Use nanair package to plot missing value patterns
+gg_miss_upset(dataset)
+```
+
+### Data Imputation 
+
+Based on above missing value analysis, we are going to perform data imputation using the  **mice** package following Random Forest method. But before that, we converted all categorical variables into factors -  
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+
+```
+
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+#imputation by using the random forest method ('rf')
+init <- mice(dataset, maxit = 0)
+predM <- init$predictorMatrix
+set.seed(123)
+imputed <- mice(dataset, method = 'rf', predictorMatrix = predM, m=5)
+```
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+dataset <- complete(imputed)
+summary(dataset)
+```
+
+We also checked for presence of any de-generate variables and found no such variable present in our dataset -  
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+# none of the variables meet the condition to be a degenerate feature
+nearZeroVar(dataset)
+```
+
+## Exploratory Data Analysis
+
+
+## Model Building
+
+### Splitting Data: Train/Test
+
+We are going to do a 75-25% split for training and test purposes. 
+
+```{r eval=FALSE, include=FALSE}
+sample = sample.split(newdata$Loan_Status, SplitRatio = 0.75)
+train = subset(newdata, sample == TRUE)
+test = subset(newdata, sample == FALSE)
+
+#head(train)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
+
+#Creating seperate dataframe for 'Loan_Status' feature which is our target.
+train.loan_labels <- train[,12]
+test.loan_labels <- test[,12]
+
+train1 <- train[,-12]
+test1 <- test[,-12]
+```
+
+### Problem2: Clustering Method
+
+
+#### Model Summary
+
+
+### Problem3: Principal Component Analysis (PCA)
+
+
+#### Model Summary
+
+
+### Problem4: Gradient Boosting Method
+
+
+#### Model Summary
+
+
+
+### Problem5: Support Vector Machine Model
+
+
+#### Model Summary
+
+
+
+## Conclusion
+
+
+
