@@ -134,13 +134,23 @@ gg_miss_upset(dataset)
 
 Based on above missing value analysis, we are going to perform data imputation using the  **mice** package following Random Forest method. But before that, we converted all categorical variables into factors -  
 
-```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+```{r}
+# The Initial variable should not be included as it is
+# an ID variable and should not be used for the
+# imputation process.  Additionally, our target variable # should also not be included.
+dataset <- dataset %>%
+  select(-'Initial')
 
+# cleaning up the column names for the imputation function
+colNamesNoSpace <- colnames(dataset) %>%
+  str_remove_all(' |-|\\.')
+
+colnames(dataset) <- colNamesNoSpace
 ```
 
 
 
-```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+```{r message=FALSE, warning=FALSE}
 #imputation by using the random forest method ('rf')
 init <- mice(dataset, maxit = 0)
 predM <- init$predictorMatrix
@@ -148,40 +158,98 @@ set.seed(123)
 imputed <- mice(dataset, method = 'rf', predictorMatrix = predM, m=5)
 ```
 
-```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+```{r}
 dataset <- complete(imputed)
 summary(dataset)
 ```
 
-We also checked for presence of any de-generate variables and found no such variable present in our dataset -  
+We also checked for presence of any de-generate variables and found no such variable present in our dataset  
 
-```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
-# none of the variables meet the condition to be a degenerate feature
-nearZeroVar(dataset)
+```{r}
+# capturing the degenerate variables
+degenCols <- nearZeroVar(dataset)
+
+# identifying them 
+colnames(dataset[,degenCols])
+
+# removing from the dataset
+dataset <- dataset[,-degenCols]
 ```
 
 ## Exploratory Data Analysis
 
+```{r}
+# make dataset long to place distribution in a facetwrap
+vars <- dataset %>%
+  gather(key = 'predictor_variable', value = 'value', -Suicide) %>%
+  mutate(Suicide = ifelse(Suicide==1,'Y','N'))
 
-## Model Building
+# Distribution of ADHD variables
+vars %>%
+  filter(str_detect(predictor_variable,'ADHD')) %>%
+  ggplot() +
+  geom_histogram(aes(x = value, y = ..density.., fill = Suicide), bins = 15) +
+  labs(title = 'Distributions of ADHD Variables') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_wrap(. ~predictor_variable, scales = 'free', ncol = 3)
+
+
+# Distribution of MDQ variables
+vars %>%
+  filter(str_detect(predictor_variable,'MD')) %>%
+  ggplot() +
+  geom_histogram(aes(x = value, y = ..density.., fill = Suicide), bins = 15) +
+  labs(title = 'Distributions of MDQ Variables') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_wrap(. ~predictor_variable, scales = 'free', ncol = 3)
+
+# Distribution of other variables
+vars %>%
+  filter(!str_detect(predictor_variable,'MD|ADH')) %>%
+  ggplot() +
+  geom_histogram(aes(x = value, y = ..density.., fill = Suicide), bins = 15) +
+  labs(title = 'Distributions of Other Variables') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_wrap(. ~predictor_variable, scales = 'free', ncol = 3)
+```
+
+
+
+### Correlation Plot: Multicollinearity Check
+
+
+```{r fig.height=6, fig.width=7, message=FALSE, warning=FALSE}
+corrMatrix <- round(cor(dataset),4)
+corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
+```
+
 
 ### Splitting Data: Train/Test
 
 We are going to do a 75-25% split for training and test purposes. 
 
-```{r eval=FALSE, include=FALSE}
-sample = sample.split(newdata$Loan_Status, SplitRatio = 0.75)
-train = subset(newdata, sample == TRUE)
-test = subset(newdata, sample == FALSE)
+```{r}
+sample = sample.split(dataset$Suicide, SplitRatio = 0.75)
+train = subset(dataset, sample == TRUE)
+test = subset(dataset, sample == FALSE)
 
 #head(train)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
 
-#Creating seperate dataframe for 'Loan_Status' feature which is our target.
-train.loan_labels <- train[,12]
-test.loan_labels <- test[,12]
 
-train1 <- train[,-12]
-test1 <- test[,-12]
+```
+
+
+## Model Building
+
+
+
+#Creating seperate dataframe for 'Loan_Status' feature which is our target.
+```{r}
+y_train <- as.factor(train$Suicide)
+y_test <- as.factor(test$Suicide)
+
+X_train <- train %>% select(-'Suicide')
+X_test <- test %>% select(-'Suicide')
 ```
 
 ### Problem2: Clustering Method
@@ -196,11 +264,46 @@ test1 <- test[,-12]
 #### Model Summary
 
 
+
 ### Problem4: Gradient Boosting Method
+
+```{r}
+# creating our tuning grid for the gradient boosting method to find optimal parameters
+gbmGrid <- expand.grid(interaction.depth=seq(1,6,by=1),
+                       n.trees=c(25,50,100,200),
+                       shrinkage=c(0.01,0.05,0.1),
+                       n.minobsinnode = 10)
+
+set.seed(312)
+gbmTune <- train(X_train, y_train,
+                 method = 'gbm',
+                 tuneGrid = gbmGrid,
+                 trControl = trainControl('cv',number = 10),
+                 verbose = FALSE)
+```
+
+
+```{r}
+summary(gbmTune)
+```
+
+
+
+```{r}
+gbm_predict <- predict(gbmTune, newdata = X_test)
+gbm_conf_matrix <- confusionMatrix(gbm_predict, y_test)
+print(gbm_conf_matrix)
+```
 
 
 #### Model Summary
 
+```{r}
+gbm_model <- confusionMatrix(table(gbm_predict, y_test))$byClass
+gbm_accuracy <- confusionMatrix(table(gbm_predict, y_test))$overall['Accuracy']
+gbm_model <- data.frame(gbm_model)
+gbm_model <- rbind("Accuracy" = gbm_accuracy, gbm_model)
+```
 
 
 ### Problem5: Support Vector Machine Model
