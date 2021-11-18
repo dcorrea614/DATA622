@@ -132,14 +132,12 @@ gg_miss_upset(dataset)
 
 ### Data Imputation 
 
-Based on above missing value analysis, we are going to perform data imputation using the  **mice** package following Random Forest method. But before that, we converted all categorical variables into factors -  
+Based on above missing value analysis, we are going to perform data imputation using the  **mice** package following Random Forest method. But before that, we remove the Initial as we do not need the ID columns for imputation.  Additionally, we removed the ADHD and MDQ subtotal columns to avoid collinearity.
 
 ```{r}
-# The Initial variable should not be included as it is
-# an ID variable and should not be used for the
-# imputation process.  Additionally, our target variable # should also not be included.
+# removing Initial, ADHD Total and MD Total columns
 dataset <- dataset %>%
-  select(-'Initial')
+  select(-c('Initial','ADHD Total','MD TOTAL'))
 
 # cleaning up the column names for the imputation function
 colNamesNoSpace <- colnames(dataset) %>%
@@ -147,7 +145,6 @@ colNamesNoSpace <- colnames(dataset) %>%
 
 colnames(dataset) <- colNamesNoSpace
 ```
-
 
 
 ```{r message=FALSE, warning=FALSE}
