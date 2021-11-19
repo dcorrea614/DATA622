@@ -251,10 +251,53 @@ X_train <- train %>% select(-'Suicide')
 X_test <- test %>% select(-'Suicide')
 ```
 
+
 ### Problem2: Clustering Method
 
+K-means clustering is an example of an unsupervised machine learning algorithm.  A clustering algorithm is a collection of data points that are aggregated together because of certain similarities.  The "k" in k-means is the number of centoids you need in the dataset - or "imaginary or real location represeting the center of the cluster".  The "means" in k-means refers to averaging of the data, or finding the centroid. 
 
+
+```{r}
+#select numeric values only
+nums <- X_test %>% dplyr::select(where(is.numeric))
+#center and scale data for K-means algorithm
+dftrans <- preProcess(nums, method = c("center", "scale", "BoxCox"))
+dftrans <- predict(dftrans, nums)
+
+```
+
+
+```{r}
+library(factoextra)
+#determine # of clusters
+fviz_nbclust(dftrans, kmeans, method = "silhouette", k.max = 10)
+
+```
+
+
+
+```{r}
+library(cluster)
+#generate cluster plot
+d <- dist(t(dftrans), method="euclidian")   
+kfit <- kmeans(d, 2)   
+clusplot(as.matrix(d), kfit$cluster, color=T, shade=T, labels=2, lines=0) 
+```
 #### Model Summary
+```{r}
+predict_km <- kmeans(dftrans, 2, nstart = 25)
+print(predict_km)
+```
+
+
+```{r}
+dftrans %>%
+  mutate(Cluster = predict_km$cluster) %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+  
+```
+
 
 
 ### Problem3: Principal Component Analysis (PCA)
