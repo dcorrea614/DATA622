@@ -363,9 +363,110 @@ gbm_model <- rbind("Accuracy" = gbm_accuracy, gbm_model)
 
 ### Problem5: Support Vector Machine Model
 
+### Problem5: Support Vector Machine Model
+
+Support Vector Machines are supervised learning models used to analyze data for classification problems. 
+
+For our dataset, SVM will help us decide an optimal decision boundary which can then help classify suicide attempts. We will build a linear model as well as a radial model and evaluate the performance for each to determine which SVM model is appropriate given our data.  
+
+#### Feature Selection
+
+We would like to calculate the correlation between our independent variables and the target, Suicide. This is to identify the most significant predictors of suicide attempts. 
+
+```{r}
+#Compute correlation between each variable and Suicide
+target_corr <- function(x, y) cor(y, x)
+Suicide_Correlation <- sapply(train, target_corr, y=train$Suicide) 
+
+#Output Correlation with Target
+Suicidecorr <- data.frame(Suicide_Correlation)
+Suicidecorr %>%
+  kbl(caption = "Correlation with Suicide") %>%
+  kable_minimal()
+```
+There seems to be no strong correlation present in the data. Out of the independent variables,history of abuse alcohol usage maybe indicators of suicide attempts among the respondents. Certain ADHD and MD responses also seem to have a moderate correlation with suicide.
+
+We will keep the variables that had a somewhat strong positive correlation such as abuse, alcohol, MDQ1G,MDQ1D and ADHDQ1. For the rest, we will use caret package to determine which features maybe significant in predicting suicide attempts.
+
+```{r}
+set.seed(7)
+# prepare training scheme
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+# train the model
+model <- train(as.factor(Suicide)~., data=dataset, method="lvq", preProcess="scale", trControl=control)
+# estimate variable importance
+importance <- varImp(model, scale=FALSE)
+# summarize importance
+print(importance)
+```
+We had already identified some of the variables above from the correlation matrix. We will keep the top 10 important variables for our SVM model.
+
+##### Linear SVM
+
+First, let's build the linear model with all variables (including those deemed insignificant). We will set the cost parameter to 10.
+
+```{r}
+linear_svm1=svm(formula=as.factor(Suicide)~.,data=train, kernel="linear", cost=10, scale=FALSE)
+print(linear_svm1)
+```
+```{r}
+test$pred = predict(linear_svm1, test)
+ 
+confusionMatrix(test$pred,as.factor(test$Suicide))
+```
+Let's see if including only the important features improves model fit.
+
+```{r}
+linear_svm2=svm(formula=as.factor(Suicide)~ Abuse+MDQ1g+Alcohol+MDQ1d+MDQ1b+MDQ2+ADHDQ1+MDQ3+Opioids+MDQ1a,data=train, kernel="linear", cost=10, scale=FALSE)
+print(linear_svm2)
+```
+```{r}
+test$pred = predict(linear_svm2, test)
+ 
+confusionMatrix(test$pred,as.factor(test$Suicide))
+```
+The model fit has significantly improved after removing the insignificant features. 
+
+
+##### Radial SVM
+
+First we will build a radial model with all variables
+```{r}
+radial_svm = svm(as.factor(Suicide)~., data=train, C = 13)
+print(radial_svm)
+```
+```{r}
+test$pred = predict(radial_svm, test)
+ 
+confusionMatrix(test$pred,as.factor(test$Suicide))
+```
+
+We will build another radial model with only the most significant variables
+
+```{r}
+radial_svm2 = svm(as.factor(Suicide)~Abuse+MDQ1g+Alcohol+MDQ1d+MDQ1b+MDQ2+ADHDQ1+MDQ3+Opioids+MDQ1a, data=train, C = 13)
+print(radial_svm2)
+```
+```{r}
+test$pred = predict(radial_svm2, test)
+ 
+confusionMatrix(test$pred,as.factor(test$Suicide))
+```
+he model fit for the radial model has improved after removing the insignificant variables - however, model performance is still better for the linear model.
 
 #### Model Summary
 
+We will store the results of our final SVM model in a dataframe
+
+```{r}
+SVM_Model_Final <- confusionMatrix(test$pred,as.factor(test$Suicide))$byClass
+SVM_Model_Final <- data.frame(SVM_Model_Final)
+AccuracySVM <- confusionMatrix(test$pred, as.factor(test$Suicide))$overall['Accuracy']
+SVM_Model_Final<- rbind("Accuracy" = AccuracySVM, SVM_Model_Final)
+tabularview <- data.frame(SVM_Model_Final)
+tabularview %>%  kableExtra::kbl() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),latex_options="scale_down")
+
+```
 
 
 ## Conclusion
