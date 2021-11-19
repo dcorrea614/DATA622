@@ -152,18 +152,21 @@ colnames(dataset) <- colNamesNoSpace
 
 ```{r message=FALSE, warning=FALSE}
 #imputation by using the random forest method ('rf')
-init <- mice(dataset, maxit = 0)
+init <- mice(dataset, maxit = 0, silent = TRUE)
 predM <- init$predictorMatrix
 set.seed(123)
-imputed <- mice(dataset, method = 'rf', predictorMatrix = predM, m=5)
+imputed <- mice(dataset, method = 'rf', predictorMatrix = predM, m=5, silent = TRUE)
+
 ```
 
 ```{r}
+# complete the imputation and show summary of the imputed data
 dataset <- complete(imputed)
 summary(dataset)
 ```
 
-We also checked for presence of any de-generate variables and found no such variable present in our dataset  
+
+We also checked for presence of any de-generate variables and removed from the dataset.
 
 ```{r}
 # capturing the degenerate variables
@@ -212,8 +215,13 @@ vars %>%
   theme(plot.title = element_text(hjust = 0.5)) +
   facet_wrap(. ~predictor_variable, scales = 'free', ncol = 3)
 ```
+#### Observations
 
-
+  - ADHD distributions illustrate that when the values are from 0 - 3, the suicide value is more likely to be N.  The inverse appears to be true, when the values are 4 - 5, the suidicde value is more likely to be Y.
+  
+  - MDQ distribution demonstrates that when the value is 0, the suicide value is more like N.  However, the opposite does not to seem hold here.
+  
+  - The rest of the variables distribution show that Abuse and Alcohol could be strong indicators for suicide.
 
 ### Correlation Plot: Multicollinearity Check
 
@@ -405,8 +413,6 @@ fviz_pca_var(dataset.pca,
              )
 ```
 
-#### Model Summary
-
 
 ### Problem4: Gradient Boosting Method
 The boosting method is uses trees in a sequential pattern.  The successive tree is developed using information from the previous tree to minimize its error.
@@ -415,12 +421,13 @@ The boosting method has three tuning parameters, number of trees, shrinkage para
 
 We will be using the stochastic gradient boosting in our model.  This approach resamples the observations and columns in each iteration.  
 
-The xgbTree method will create a model by choosing the best tuning parameters.
+The **xgbTree** method will create a model by choosing the best tuning parameters.
 
 ```{r include=FALSE}
-set.seed(312)
+set.seed(222)
 gbmTune <- train(X_train, y_train,
                  method = 'xgbTree',
+                 preProc = 'scale',
                  trControl = trainControl('cv',number = 10),
                  verbose = FALSE)
 ```
@@ -430,11 +437,12 @@ Here, we can see our parameters that are used in the model.
 ```{r}
 gbmTune$bestTune
 ```
-We identify the variables with the most importance to the prediction below, with Abuse and MDQ1g being highly important.  
+We identify the variables with the most importance to the prediction below, with Abuse having the most importance important.  
 
 ```{r}
-varImp(gbmTune)
+varImp(gbmTune)['importance'] %>%  kbl() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),latex_options="scale_down")
 ```
+
 Visualization of the first 3 trees used in the model.
 
 ```{r}
@@ -459,6 +467,9 @@ gbm_model <- confusionMatrix(table(gbm_predict, y_test))$byClass
 gbm_accuracy <- confusionMatrix(table(gbm_predict, y_test))$overall['Accuracy']
 gbm_model <- data.frame(gbm_model)
 gbm_model <- rbind("Accuracy" = gbm_accuracy, gbm_model)
+
+gbm_model %>%
+ kbl() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),latex_options="scale_down")
 ```
 
 
@@ -479,7 +490,7 @@ Suicide_Correlation <- sapply(train, target_corr, y=train$Suicide)
 
 #Output Correlation with Target
 Suicidecorr <- data.frame(Suicide_Correlation)
-Suicidecorr %>%
+Suicidecorr %>% 
   kbl(caption = "Correlation with Suicide") %>%
   kable_minimal()
 ```
@@ -564,11 +575,11 @@ AccuracySVM <- confusionMatrix(test$pred, as.factor(test$Suicide))$overall['Accu
 SVM_Model_Final<- rbind("Accuracy" = AccuracySVM, SVM_Model_Final)
 tabularview <- data.frame(SVM_Model_Final)
 tabularview %>%  kableExtra::kbl() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),latex_options="scale_down")
-
 ```
 
 
 ## Conclusion
 
 
+The linear SVM model outperformed the radial SVM model, however the Stochastic Gradient Boosting model holds the best accuracy on the test data.  This looks to be the results of having a higher specificity performance in the model.  This outcome may be the results of Gradient Boosting having low bias and variance with its boosting method.  
 
