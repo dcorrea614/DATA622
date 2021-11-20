@@ -1,22 +1,25 @@
 ---
 title: "DATA 622 - Homework4 - Mental Health Analysis"
-author: "Group1: Diego Correa, Amanda Arce, Soumya Ghosh & Atina Karim"
+author: 'Group1: Diego Correa, Amanda Arce, Soumya Ghosh & Atina Karim'
 date: "November 08, 2021"
-always_allow_html: yes
 output:
+  word_document:
+    toc: yes
+    toc_depth: '5'
+  pdf_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 5
   html_document:
     df_print: kable
     theme: cerulean
     highlight: pygments
     css: ./lab.css
-    toc: true
-    toc_float:
-      collapsed: true
-    toc_depth: 5
-  pdf_document: 
-    number_sections: yes
     toc: yes
+    toc_float:
+      collapsed: yes
     toc_depth: 5
+always_allow_html: yes
 ---
 
 ```{r setup, include=FALSE, warning=FALSE, message=FALSE}
@@ -526,62 +529,66 @@ We had already identified some of the variables above from the correlation matri
 First, let's build the linear model with all variables (including those deemed insignificant). We will set the cost parameter to 10.
 
 ```{r}
+set.seed(123)
 linear_svm1=svm(formula=as.factor(Suicide)~.,data=train, kernel="linear", cost=10, scale=FALSE)
 print(linear_svm1)
 ```
 ```{r}
-test$pred = predict(linear_svm1, test)
+test$pred1 = predict(linear_svm1, test)
  
 confusionMatrix(test$pred,as.factor(test$Suicide))
 ```
 Let's see if including only the important features improves model fit.
 
 ```{r}
+set.seed(123)
 linear_svm2=svm(formula=as.factor(Suicide)~ Abuse+MDQ1g+Alcohol+MDQ1d+MDQ1b+MDQ2+ADHDQ1+MDQ3+Opioids+MDQ1a,data=train, kernel="linear", cost=10, scale=FALSE)
 print(linear_svm2)
 ```
 ```{r}
-test$pred = predict(linear_svm2, test)
+test$pred2 = predict(linear_svm2, test)
  
-confusionMatrix(test$pred,as.factor(test$Suicide))
+confusionMatrix(test$pred2,as.factor(test$Suicide))
 ```
-The model fit has significantly improved after removing the insignificant features. 
+The model fit has not improved after removing the insignificant features. 
 
 
 ##### Radial SVM
 
 First we will build a radial model with all variables
 ```{r}
+set.seed(123)
 radial_svm = svm(as.factor(Suicide)~., data=train, C = 13)
 print(radial_svm)
 ```
 ```{r}
-test$pred = predict(radial_svm, test)
+test$pred3 = predict(radial_svm, test)
  
-confusionMatrix(test$pred,as.factor(test$Suicide))
+confusionMatrix(test$pred3,as.factor(test$Suicide))
 ```
 
 We will build another radial model with only the most significant variables
 
 ```{r}
+set.seed(123)
 radial_svm2 = svm(as.factor(Suicide)~Abuse+MDQ1g+Alcohol+MDQ1d+MDQ1b+MDQ2+ADHDQ1+MDQ3+Opioids+MDQ1a, data=train, C = 13)
 print(radial_svm2)
 ```
 ```{r}
-test$pred = predict(radial_svm2, test)
+test$pred4 = predict(radial_svm2, test)
  
-confusionMatrix(test$pred,as.factor(test$Suicide))
+confusionMatrix(test$pred4,as.factor(test$Suicide))
 ```
-he model fit for the radial model has improved after removing the insignificant variables - however, model performance is still better for the linear model.
+The model fit for the radial model has not improved after removing the insignificant variables. The model performance for the first radial model also outperforms the other SVM models.
 
 #### Model Summary
 
 We will store the results of our final SVM model in a dataframe
 
 ```{r}
-SVM_Model_Final <- confusionMatrix(test$pred,as.factor(test$Suicide))$byClass
+SVM_Model_Final <- confusionMatrix(test$pred4,as.factor(test$Suicide))$byClass
 SVM_Model_Final <- data.frame(SVM_Model_Final)
-AccuracySVM <- confusionMatrix(test$pred, as.factor(test$Suicide))$overall['Accuracy']
+AccuracySVM <- confusionMatrix(test$pred4, as.factor(test$Suicide))$overall['Accuracy']
 SVM_Model_Final<- rbind("Accuracy" = AccuracySVM, SVM_Model_Final)
 tabularview <- data.frame(SVM_Model_Final)
 tabularview %>%  kableExtra::kbl() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),latex_options="scale_down")
@@ -590,8 +597,6 @@ tabularview %>%  kableExtra::kbl() %>% kable_styling(bootstrap_options = c("stri
 
 ## Conclusion
 
-
-The linear SVM model outperformed the radial SVM model, however the Stochastic Gradient Boosting model holds the best accuracy on the test data.  This looks to be the results of having a higher specificity performance in the model.  This outcome may be the results of Gradient Boosting having low bias and variance with its boosting method.  The k-means clustering model is an unsupervised machine learning model that allowed us to find insight into our mental health dataset. With an optimal clustering of 2, we were able to group our data into two groups. 
-
+The radial SVM model outperformed the linear SVM model, however the Stochastic Gradient Boosting model holds the best accuracy on the test data.  This looks to be the results of having a higher specificity performance in the model.  This outcome may be the results of Gradient Boosting having low bias and variance with its boosting method.  The k-means clustering model is an unsupervised machine learning model that allowed us to find insight into our mental health dataset. With an optimal clustering of 2, we were able to group our data into two groups. 
 
 
