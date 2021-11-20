@@ -1,25 +1,22 @@
 ---
 title: "DATA 622 - Homework4 - Mental Health Analysis"
-author: 'Group1: Diego Correa, Amanda Arce, Soumya Ghosh & Atina Karim'
+author: "Group1: Diego Correa, Amanda Arce, Soumya Ghosh & Atina Karim"
 date: "November 08, 2021"
+always_allow_html: yes
 output:
-  word_document:
-    toc: yes
-    toc_depth: '5'
-  pdf_document:
-    number_sections: yes
-    toc: yes
-    toc_depth: 5
   html_document:
     df_print: kable
     theme: cerulean
     highlight: pygments
     css: ./lab.css
-    toc: yes
+    toc: true
     toc_float:
-      collapsed: yes
+      collapsed: true
     toc_depth: 5
-always_allow_html: yes
+  pdf_document: 
+    number_sections: yes
+    toc: yes
+    toc_depth: 5
 ---
 
 ```{r setup, include=FALSE, warning=FALSE, message=FALSE}
@@ -48,6 +45,7 @@ library(DiagrammeR)
 library(factoextra)
 library(e1071)
 library(FactoMineR)
+library(skimr)
 ```
 
 ## Background
@@ -100,6 +98,9 @@ head(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hov
 
 ```{r warning=FALSE, message=FALSE}
 summary(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+
+# Show dataset summary deatils
+#skim(dataset)
 ```
 
 
@@ -165,7 +166,7 @@ imputed <- mice(dataset, method = 'rf', predictorMatrix = predM, m=5, silent = T
 ```{r}
 # complete the imputation and show summary of the imputed data
 dataset <- complete(imputed)
-summary(dataset)
+summary(dataset) %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
 ```
 
 
@@ -218,9 +219,10 @@ vars %>%
   theme(plot.title = element_text(hjust = 0.5)) +
   facet_wrap(. ~predictor_variable, scales = 'free', ncol = 3)
 ```
+
 #### Observations
 
-  - ADHD distributions illustrate that when the values are from 0 - 3, the suicide value is more likely to be N.  The inverse appears to be true, when the values are 4 - 5, the suidicde value is more likely to be Y.
+  - ADHD distributions illustrate that when the values are from 0 - 3, the suicide value is more likely to be N.  The inverse appears to be true, when the values are 4 - 5, the suicide value is more likely to be Y.
   
   - MDQ distribution demonstrates that when the value is 0, the suicide value is more like N.  However, the opposite does not to seem hold here.
   
@@ -228,12 +230,12 @@ vars %>%
 
 ### Correlation Plot: Multicollinearity Check
 
-
-```{r fig.height= 8, fig.width=8, message=FALSE, warning=FALSE}
+```{r fig.height= 10, fig.width=10, message=FALSE, warning=FALSE}
 corrMatrix <- round(cor(dataset),4)
 corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
 ```
 
+From the plot above, it can be concluded that there are no variable pairs having high correlation. 
 
 ### Splitting Data: Train/Test
 
@@ -252,9 +254,6 @@ test = subset(dataset, sample == FALSE)
 
 ## Model Building
 
-
-
-#Creating seperate dataframe for 'Loan_Status' feature which is our target.
 ```{r}
 y_train <- as.factor(train$Suicide)
 y_test <- as.factor(test$Suicide)
@@ -268,7 +267,8 @@ X_test <- test %>% select(-'Suicide')
 
 K-means clustering is an example of an unsupervised machine learning algorithm.  A clustering algorithm is a collection of data points that are aggregated together because of certain similarities.  The "k" in k-means is the number of centroids you need in the dataset - or "imaginary or real location representing the center of the cluster".  The "means" in k-means refers to averaging of the data, or finding the centroid. 
 
-The first step is to standardize the data to have a mean of zero and standard deviation of one.  This is because the kmeans algorithm uses a distance-based measurement to determine the similarity between data points.  Most of the time, features in a dataset will have different units of measurements. 
+The first step is to standardize the data to have a mean of zero and standard deviation of one.  This is because the kmeans algorithm uses a distance-based measurement to determine the similarity between data points.  Most of the time, features in a dataset will have different units of measurements.
+
 ```{r}
 #select numeric values only
 nums <- X_test %>% dplyr::select(where(is.numeric))
@@ -283,16 +283,20 @@ In order to determine the number of clusters needed for our algortihm, we will u
 ```{r}
 library(factoextra)
 #determine # of clusters
-fviz_nbclust(dftrans, kmeans, method = "silhouette", k.max = 10)
+fviz_nbclust(dftrans, kmeans, method = "silhouette", k.max = 10) +
+  labs(subtitle = "Silhouette method") # add subtitle
 
 ```
+
 Another popular method is the Elbow method.  Ther Elbow method is used to help determine the optimal number of clusters for the optimal value of k.
 
 
 ```{r}
-fviz_nbclust(dftrans, kmeans, method = "wss")
+fviz_nbclust(dftrans, kmeans, method = "wss") +
+  labs(subtitle = "Elbow method") # add subtitle
 
 ```
+
 Both of our methods to find 'k' suggest 2 clusters is the optimal number.  We can visualize the results of our clusters as shown below.
 
 ```{r}
@@ -303,22 +307,28 @@ print(final)
 ```{r}
 fviz_cluster(final, data = dftrans)
 ```
-```{r}
+
+```{r fig.height=7, fig.width=7}
 library(cluster)
 #generate cluster plot
 d <- dist(t(dftrans), method="euclidian")   
 kfit <- kmeans(d, 2)   
 clusplot(as.matrix(d), kfit$cluster, color=T, shade=T, labels=2, lines=0) 
 ```
+
 #### Model Summary
+
 We can record the summary of the kmeans cluster model metrics below: 
 
-
 ```{r}
+
+predict_km <- kmeans(dftrans, 2, nstart = 25)
+print(predict_km)
+
 dftrans %>%
   mutate(Cluster = predict_km$cluster) %>%
   group_by(Cluster) %>%
-  summarise_all("mean")
+  summarise_all("mean") %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
 ```
 
 
@@ -376,7 +386,7 @@ plot(cumsum(prop_varex), xlab = "Principal Component",
               type = "b")
 ```
 
-As we can see above in our plots of the PVE and the cumultative PVE, the first few principal components account for a much larger proportion of the variance explained than the remaining 50+ principal components for this dataset. Additionally, the proportion of variance explained by the first principal component at 25% is ~3 times the second principal component’s proportion of variance explained.
+As we can see above in our plots of the PVE and the cumultative PVE, the first few principal components account for a much larger proportion of the variance explained than the remainder of the 50 principal components for this dataset. Additionally, the proportion of variance explained by the first principal component at 25% is ~3 times the second principal component’s proportion of variance explained.
 
 Although running PCA on the entire dataset is helpful in some ways, certain findings from a biplot are affected by the number of variables in the overall dataset. Additionally, we are seeing from our PCA analysis that the first few principal components explain a much larger proportion of the variability than later principal components. Because of this, we thought it would be interesting to dive a bit deeper into which variables seem to hold the most importance in determining the first few dimensions. To do this, we’ll use the FactoMineR and factoextra packages to determine the eigenvalues of each dimension, with particular interest in dimensions 1 and 2, since those are what we’ve plotted above and hold the highest proportion of variance explained.
 
@@ -399,7 +409,7 @@ Since our biplot above was very crowded and difficult to interpret, we decided t
 corrplot(var$cos2, is.corr=FALSE)
 ```
 
-Typically, a high cos2 value indicates a good representation of the variable on the principal component, and in our case the variable is positioned close to the circumference of the correlation circle (and farther away from the origin) – which we can visibly see with variables such as X.ADHD.Total and X.MD.Total on the biplot. The opposite is true for variables with a low cos2 value, which tend to fall closer to the origin.
+Typically, a high cos2 value indicates a good representation of the variable on the principal component, and in our case the variable is positioned close to the circumference of the correlation circle (and farther away from the origin) – which we can visibly see with variables such as **ADHDQ8**, **ADHDQ9**, **ADHDQ10**, **ADHDQ13** and **MDQ1g** on the biplot. The opposite is true for variables with a low cos2 value, which tend to fall closer to the origin.
 
 We can also take a look at factors such as the contribution of variables on our principal components. Variables that are correlated with PC1 and PC2 are the most important in explaining the variability in the dataset. Therefore, when we conduct another correlation plot, but this time of variable contribution, we see the following:
 
@@ -414,7 +424,7 @@ fviz_contrib(dataset.pca, choice = "var", axes = 1, top = 15)
 fviz_contrib(dataset.pca, choice = "var", axes = 2, top = 15)
 ```
 
-Similar to our biplot visualization and our cos2 values, we can confirm that ADHDQ8, ADHDQ9 etc. along with many other ADHD and MD questions contribute most to the variability explained in our dataset. This is important for us to take note of for future analysis, where we will be looking more closely at features that seem to provide more insight into clustering and classification.
+Similar to our biplot visualization and our cos2 values, we can confirm that **ADHDQ8**, **ADHDQ9**, **ADHDQ10**, **ADHDQ13** and **MDQ1g** etc. along with many other ADHD and MD questions contribute most to the variability explained in our dataset. This is important for us to take note of for future analysis, where we will be looking more closely at features that seem to provide more insight into clustering and classification.
 
 Graph of variables. Positive correlated variables point to the same side of the plot. Negative correlated variables point to opposite sides of the graph.
 
@@ -500,7 +510,6 @@ We would like to calculate the correlation between our independent variables and
 #Compute correlation between each variable and Suicide
 target_corr <- function(x, y) cor(y, x)
 Suicide_Correlation <- sapply(train, target_corr, y=train$Suicide) 
-
 #Output Correlation with Target
 Suicidecorr <- data.frame(Suicide_Correlation)
 Suicidecorr %>% 
@@ -597,6 +606,12 @@ tabularview %>%  kableExtra::kbl() %>% kable_styling(bootstrap_options = c("stri
 
 ## Conclusion
 
-The radial SVM model outperformed the linear SVM model, however the Stochastic Gradient Boosting model holds the best accuracy on the test data.  This looks to be the results of having a higher specificity performance in the model.  This outcome may be the results of Gradient Boosting having low bias and variance with its boosting method.  The k-means clustering model is an unsupervised machine learning model that allowed us to find insight into our mental health dataset. With an optimal clustering of 2, we were able to group our data into two groups. 
+
+The linear SVM model outperformed the radial SVM model, however the Stochastic Gradient Boosting model holds the best accuracy on the test data.  This looks to be the results of having a higher specificity performance in the model.  This outcome may be the results of Gradient Boosting having low bias and variance with its boosting method.  The k-means clustering model is an unsupervised machine learning model that allowed us to find insight into our mental health dataset. With an optimal clustering of 2, we were able to group our data into two groups. 
+
+Also, based on the PCA we found that first few principal components explained a large proportion of variances. Based on further analysis, we also found the most important variables in terms of representation and contribution in the first couple of principal components.  
+
+
+
 
 
