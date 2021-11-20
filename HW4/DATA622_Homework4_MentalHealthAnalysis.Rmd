@@ -263,9 +263,9 @@ X_test <- test %>% select(-'Suicide')
 
 ### Problem2: Clustering Method
 
-K-means clustering is an example of an unsupervised machine learning algorithm.  A clustering algorithm is a collection of data points that are aggregated together because of certain similarities.  The "k" in k-means is the number of centoids you need in the dataset - or "imaginary or real location represeting the center of the cluster".  The "means" in k-means refers to averaging of the data, or finding the centroid. 
+K-means clustering is an example of an unsupervised machine learning algorithm.  A clustering algorithm is a collection of data points that are aggregated together because of certain similarities.  The "k" in k-means is the number of centroids you need in the dataset - or "imaginary or real location representing the center of the cluster".  The "means" in k-means refers to averaging of the data, or finding the centroid. 
 
-
+The first step is to standardize the data to have a mean of zero and standard deviation of one.  This is because the kmeans algorithm uses a distance-based measurement to determine the similarity between data points.  Most of the time, features in a dataset will have different units of measurements. 
 ```{r}
 #select numeric values only
 nums <- X_test %>% dplyr::select(where(is.numeric))
@@ -275,6 +275,7 @@ dftrans <- predict(dftrans, nums)
 
 ```
 
+In order to determine the number of clusters needed for our algortihm, we will use the average silhoutte method.  The average silhoutte method measures how well each object lies within a given cluster.  The higher the average silhouette width, the better the clustering.  The funcion fviz_nbclust allows us to do this process with ease, as shown below. 
 
 ```{r}
 library(factoextra)
@@ -282,9 +283,23 @@ library(factoextra)
 fviz_nbclust(dftrans, kmeans, method = "silhouette", k.max = 10)
 
 ```
+Another popular method is the Elbow method.  Ther Elbow method is used to help determine the optimal number of clusters for the optimal value of k.
 
 
+```{r}
+fviz_nbclust(dftrans, kmeans, method = "wss")
 
+```
+Both of our methods to find 'k' suggest 2 clusters is the optimal number.  We can visualize the results of our clusters as shown below.
+
+```{r}
+final <- kmeans(dftrans, 2, nstart =25)
+print(final)
+```
+
+```{r}
+fviz_cluster(final, data = dftrans)
+```
 ```{r}
 library(cluster)
 #generate cluster plot
@@ -292,22 +307,17 @@ d <- dist(t(dftrans), method="euclidian")
 kfit <- kmeans(d, 2)   
 clusplot(as.matrix(d), kfit$cluster, color=T, shade=T, labels=2, lines=0) 
 ```
-
 #### Model Summary
-
-```{r}
-predict_km <- kmeans(dftrans, 2, nstart = 25)
-print(predict_km)
-```
+We can record the summary of the kmeans cluster model metrics below: 
 
 
 ```{r}
 dftrans %>%
   mutate(Cluster = predict_km$cluster) %>%
   group_by(Cluster) %>%
-  summarise_all("mean") %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
-  
+  summarise_all("mean")
 ```
+
 
 
 
@@ -581,5 +591,7 @@ tabularview %>%  kableExtra::kbl() %>% kable_styling(bootstrap_options = c("stri
 ## Conclusion
 
 
-The linear SVM model outperformed the radial SVM model, however the Stochastic Gradient Boosting model holds the best accuracy on the test data.  This looks to be the results of having a higher specificity performance in the model.  This outcome may be the results of Gradient Boosting having low bias and variance with its boosting method.  
+The linear SVM model outperformed the radial SVM model, however the Stochastic Gradient Boosting model holds the best accuracy on the test data.  This looks to be the results of having a higher specificity performance in the model.  This outcome may be the results of Gradient Boosting having low bias and variance with its boosting method.  The k-means clustering model is an unsupervised machine learning model that allowed us to find insight into our mental health dataset. With an optimal clustering of 2, we were able to group our data into two groups. 
+
+
 
