@@ -1,0 +1,161 @@
+---
+title: "DATA 622 - Final Project - Communities and Crimes Analysis"
+author: "Group1: Diego Correa, Amanda Arce, Soumya Ghosh & Atina Karim"
+date: "December 02, 2021"
+always_allow_html: yes
+output:
+  html_document:
+    df_print: kable
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true
+    toc_float:
+      collapsed: true
+    toc_depth: 5
+  pdf_document: 
+    number_sections: yes
+    toc: yes
+    toc_depth: 5
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+
+```{r warning=FALSE, message=FALSE}
+library(kableExtra)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(psych)
+library(caret)
+library(mice)
+library(randomForest)
+library(caTools)
+library(corrplot)
+library(class)
+library(rpart)
+library(rpart.plot)
+library(naniar)
+library(xgboost)
+library(DiagrammeR)
+```
+
+
+## Background
+
+For this assignment, we will be working with a very interesting mental health dataset from a real-life research project. All identifying information, of course, has been removed. The attached spreadsheet has the data (the tab name “Data”). The data dictionary is given in the second tab. You can get as creative as you want. The assignment is designed to really get you to think about how you could use different methods.
+
+The target variable is **'Violent Crimes Per Population'**.
+
+## Data Dictionary
+
+
+## Problem Statement
+
+
+## Dataset
+
+```{r warning=FALSE, message=FALSE}
+dataset <- read_csv('https://raw.githubusercontent.com/dcorrea614/DATA622/main/FinalProject/communities.data.csv')
+head(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="100%",height="300px")
+```
+
+
+### Descriptive Dataset Summary
+
+We see that *?* is used in place of NA in the dataset.  We need to convert these entries into *NA* values to begin our analysis.
+
+```{r warning=FALSE, message=FALSE}
+# 
+dataset[dataset == '?'] = NA
+
+summary(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+```
+
+## Pre-Processing
+
+### Missing Value Analysis
+
+Based on the above descriptive data summary, there are quite a few variables with missing values. So we conducted an analysis of all missing values in various attributes to identify proper imputation technique.
+
+```{r fig.height=4, message=FALSE, warning=FALSE}
+## Counts of missing data per feature
+dataset_missing_counts <- data.frame(apply(dataset, 2, function(x) length(which(is.na(x)))))
+dataset_missing_pct <- data.frame(apply(dataset, 2,function(x) {sum(is.na(x)) / length(x) * 100}))
+
+dataset_missing_counts <- cbind(Feature = rownames(dataset_missing_counts), dataset_missing_counts, dataset_missing_pct)
+colnames(dataset_missing_counts) <- c('Feature','NA_Count','NA_Percentage')
+rownames(dataset_missing_counts) <- NULL
+
+dataset_missing_counts <- dataset_missing_counts %>% filter(`NA_Count` != 0) %>% arrange(desc(`NA_Count`))
+
+dataset_missing_counts  %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
+
+ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))) + 
+  geom_bar(stat = 'identity', fill = 'steelblue') +
+  geom_label(aes(label = NA_Count)) +
+  labs(title = 'Missing Counts') +
+  theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
+```
+There are 22 variables missing 84% of data and 2 variables missing roughly 59% of data.  Imputation on these varibales is a risk as the majority of the data is missing.  Instead we can remove these variables from our dataset. 
+
+```{r}
+colremove <- dataset_missing_counts %>%
+  filter(NA_Percentage > 50) %>% 
+  select(Feature) %>%
+  as.list()
+
+dataset <- dataset[,!(colnames(dataset) %in% colremove$Feature)]
+```
+
+We also checked for presence of any de-generate variables and found no such variable present in our dataset  
+
+```{r}
+# capturing the degenerate variables
+degenCols <- nearZeroVar(dataset)
+
+# identifying them 
+colnames(dataset[,degenCols])
+
+# removing from the dataset
+dataset <- dataset[,-degenCols]
+```
+
+## Exploratory Data Analysis
+
+### Graphing on Map
+
+### Distributions
+
+### Correlation Plot: Multicollinearity Check
+
+
+### Splitting Data: Train/Test
+
+We are going to do a 75-25% split for training and test purposes. 
+
+```{r}
+sample = sample.split(dataset$Suicide, SplitRatio = 0.75)
+train = subset(dataset, sample == TRUE)
+test = subset(dataset, sample == FALSE)
+
+#head(train)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
+
+```
+
+
+## Modeling
+
+### Linear Regression Model 
+
+### Non Linear Regression Model
+
+### Trees and Boosting Model
+
+## Conclusion
