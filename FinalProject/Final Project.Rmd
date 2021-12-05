@@ -153,6 +153,8 @@ plot_usmap(data = avgViolentCrimeByState, values = 'avgViolentCrimesPerPop', col
 ### Correlation Plot: Multicollinearity Check
 
 
+### Unsupervised Analysis
+
 ### Splitting Data: Train/Test
 
 We are going to do a 75-25% split for training and test purposes. 
