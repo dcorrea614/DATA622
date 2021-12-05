@@ -112,6 +112,10 @@ colremove <- dataset_missing_counts %>%
   as.list()
 
 dataset <- dataset[,!(colnames(dataset) %in% colremove$Feature)]
+
+
+# removing the folds variable as it was placed for cross validation
+dataset <- dataset[,names(dataset) != 'fold']
 ```
 
 We also checked for presence of any de-generate variables and found no such variable present in our dataset  
@@ -130,6 +134,19 @@ dataset <- dataset[,-degenCols]
 ## Exploratory Data Analysis
 
 ### Graphing on Map
+
+```{r}
+# aggregating the Average ViolentCrimesPerPop by State ID (FIPS)
+avgViolentCrimeByState <- dataset %>%
+  group_by(state) %>%
+  summarise(avgViolentCrimesPerPop = mean(ViolentCrimesPerPop)) %>%
+  mutate(fips = str_pad(state,2,pad='0'))
+
+plot_usmap(data = avgViolentCrimeByState, values = 'avgViolentCrimesPerPop', color = 'red') +
+  scale_fill_continuous(
+    low = 'white',high = 'red',name = 'Average Violent Crimes per 100K Population'
+  ) + theme(legend.position = 'right')
+```
 
 ### Distributions
 
