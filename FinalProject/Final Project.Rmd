@@ -118,8 +118,6 @@ dataset <- dataset[,!(colnames(dataset) %in% colremove$Feature)]
 dataset <- dataset[,names(dataset) != 'fold']
 ```
 
-We also checked for presence of any de-generate variables and found no such variable present in our dataset  
-
 ```{r}
 # capturing the degenerate variables
 degenCols <- nearZeroVar(dataset)
@@ -129,6 +127,14 @@ colnames(dataset[,degenCols])
 
 # removing from the dataset
 dataset <- dataset[,-degenCols]
+
+dataset <- dataset[,!colnames(dataset) == 'communityname']
+
+dataset <- dataset %>%
+  mutate(OtherPerCap = as.numeric(OtherPerCap))
+
+#remove missing brand => df3
+dataset <- dataset[!is.na(dataset$OtherPerCap), ]
 ```
 
 ## Exploratory Data Analysis
@@ -148,21 +154,31 @@ plot_usmap(data = avgViolentCrimeByState, values = 'avgViolentCrimesPerPop', col
   ) + theme(legend.position = 'right')
 ```
 
+
+
 ### Distributions
 
 ### Correlation Plot: Multicollinearity Check
 
 
-### Unsupervised Analysis
+
 
 ### Splitting Data: Train/Test
 
 We are going to do a 75-25% split for training and test purposes. 
 
 ```{r}
-sample = sample.split(dataset$Suicide, SplitRatio = 0.75)
-train = subset(dataset, sample == TRUE)
-test = subset(dataset, sample == FALSE)
+sample = sample.split(dataset$ViolentCrimesPerPop, SplitRatio = 0.75)
+
+
+train = subset(dataset, sample == TRUE) %>% as.matrix()
+test = subset(dataset, sample == FALSE) %>% as.matrix()
+
+y_train <- train[,101]
+y_test <- test[,101]
+
+X_train <- train[,-101]
+X_test <- test[,-101]
 
 #head(train)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
 
@@ -174,6 +190,133 @@ test = subset(dataset, sample == FALSE)
 ### Linear Regression Model 
 
 ### Non Linear Regression Model
+
+Non Linear Regression models do not follow the $y=ax+b$ approach.  It allows for flexibility in the model to fit non linear trends in data.  We will go over three examples of non linear regression: K-Nearest Neighbors (KNN), Support Vector Machines (SVM), and Multivaraite Adaptive Regression Splines (MARS).
+
+#### K-Nearest Neighbors
+
+The **KNN** model predicts a new sample for regression using the **K**-closest data points from the training set.  The method uses the Euclidean distance or the straight-line distance between samples.
+
+
+$$(\sum^p_{j=1}(x_{aj}-x_{bj})^q)^{1/q}$$
+
+The `train` function in the **caret** package uses the `knn` method, centers and scales 
+
+```{r}
+knnFit <- train(X_train, y_train,
+                   method = 'knn',
+                   preProc = c('center','scale'),
+                   tuneLength = 14,
+                   trControl = trainControl(method = 'cv'))
+
+knnFit$finalModel
+
+knnFit
+```
+
+##### KNN Plot
+
+```{r}
+plot(knnFit)
+```
+
+###### Variable Importance
+
+```{r}
+varimp <- varImp(knnFit)
+
+varimp$importance %>%
+  arrange(desc(Overall)) %>%
+  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+```
+
+
+###### Prediction Performance
+
+```{r}
+knnPred <- predict(knnFit, newdata = X_test)
+knnPredPerf <- postResample(pred = knnPred, obs = y_test)
+
+knnPredPerf['Family'] <- 'NonLinear'
+```
+
+
+#### Suppost Vector Machines
+
+SVM regression models try to find a regression line where each data point is within a threshold.  The error is a parameter of the model and it will then try to minimize the coefficients used in the model. This allows the model eliminate features and have greater interpretability.
+
+We will again use the **caret** package and apply a **radial SVM** model.  This method will allow the model to find trends in the dataset.
+
+
+```{r}
+svmRFit <- train(X_train, y_train,
+                   method = 'svmRadial',
+                   preProc = c('center','scale'),
+                   tuneLength = 14,
+                   trControl = trainControl(method = 'cv'))
+
+svmRFit
+```
+
+###### Variable Importance
+
+```{r}
+varimp <- varImp(svmRFit)
+
+varimp$importance %>%
+  arrange(desc(Overall)) %>%
+  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+```
+
+
+###### Prediction Performance
+
+```{r}
+svmRPred <- predict(svmRFit, newdata = X_test)
+svmRPredPerf <- postResample(pred = svmRPred, obs = y_test)
+
+svmRPredPerf['Family'] <- 'NonLinear'
+```
+
+#### Multivaraite Adaptive Regression Splines
+
+The Mars model finds *knots* to determine piece wise linear model where each new feature models an isolated portion of the data.  The predictor / cut point combination that has the smallest error is used for the model in an iterative process until a stopping point is reached.  
+
+
+We will use the **earth** package to generate this MARS model.
+
+
+```{r}
+# mars
+marsFit <- earth(X_train, y_train)
+summary(marsFit)
+```
+
+##### Visualizing MARS Model
+
+```{r}
+plotmo(marsFit)
+```
+
+###### Variable Importance
+
+```{r}
+varimp <- varImp(marsFit)
+
+varimp %>%
+  arrange(desc(Overall)) %>%
+  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+```
+
+
+###### Prediction Performance
+
+```{r}
+marsPred <- predict(marsFit, newdata = X_test)
+marsPredPerf <- postResample(pred = marsPred, obs = y_test)
+
+marsPredPerf['Family'] <- 'NonLinear'
+```
 
 ### Trees and Boosting Model
 
