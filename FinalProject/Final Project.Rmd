@@ -191,7 +191,51 @@ X_test <- test[,-101]
 
 ### Non Linear Regression Model
 
-Non Linear Regression models do not follow the $y=ax+b$ approach.  It allows for flexibility in the model to fit non linear trends in data.  We will go over three examples of non linear regression: K-Nearest Neighbors (KNN), Support Vector Machines (SVM), and Multivaraite Adaptive Regression Splines (MARS).
+Non Linear Regression models do not follow the $y=ax+b$ approach.  It allows for flexibility in the model to fit non linear trends in data.  
+
+We will go over three examples of non linear regression: K-Nearest Neighbors (KNN), Support Vector Machines (SVM), and Multivaraite Adaptive Regression Splines (MARS).
+
+
+#### Neural Networks
+
+Neural Networks are regression techniques inspired by theories of how the brain works (neurons signalling to one another).  The outcome is modeled by an input layer and an intermediary set of unobserved values, hidden units, made up of linear combinations of the original predictors.  
+
+The parameters used in the model include number of hidden units, decay, number of iterations to find parameter estimates, and the number of paramters used by the model.
+
+
+```{r}
+# averaging a simple Neural Network with 5 hidden units
+nnetAvg <- avNNet(X_train, y_train,
+                  size = 5,
+                  decay = 0.01,
+                  repeats = 5,
+                  linout = TRUE,
+                  trace = FALSE,
+                  maxit = 500,
+                  MaxNWts = 5 * (ncol(X_train) + 1) +5+1)
+
+nnetAvg
+```
+
+
+###### Variable Importance
+
+```{r}
+varimp <- varImp(nnetAvg)
+
+varimp %>%
+  arrange(desc(Overall)) %>%
+  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+```
+
+###### Prediction Performance
+
+```{r}
+nnetPred <- predict(nnetAvg, newdata = X_test)
+nnetPredPerf <- postResample(pred = nnetPred, obs = y_test)
+
+nnetPredPerf['Family'] <- 'NonLinear'
+```
 
 #### K-Nearest Neighbors
 
@@ -230,7 +274,6 @@ varimp$importance %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
-
 ###### Prediction Performance
 
 ```{r}
@@ -239,7 +282,6 @@ knnPredPerf <- postResample(pred = knnPred, obs = y_test)
 
 knnPredPerf['Family'] <- 'NonLinear'
 ```
-
 
 #### Suppost Vector Machines
 
@@ -267,7 +309,6 @@ varimp$importance %>%
   arrange(desc(Overall)) %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
-
 
 ###### Prediction Performance
 
