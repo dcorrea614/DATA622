@@ -187,7 +187,107 @@ X_test <- test[,-101]
 
 ## Modeling
 
-### Linear Regression Model 
+
+### Linear Regression Model - Ridge and LASSO
+
+
+
+The glmnet package allows us to perform both the ridge and lasso regression models.  This library requires the response variable to be a vector and the predictor variables to be a class of data.matrix.
+```{r}
+library(glmnet)
+```
+
+
+#Ridge Regression
+
+Ridge regression is a model used "when the number of predictor variables in a set exceeds the number of observations", or when a dataset suffers from multicollinearity.  According to stats, with ridge regression, often predictor variables used in a regression are highly correlated.  When they are, the regression coefficient of any one variable can depend on which other predictor variables are included in the model, and which ones are left out. 
+
+
+Now we'll use the glmnet() function to fit the ridge regression model and specify alpha=0.
+```{r}
+
+fit.ridge <- cv.glmnet(as.matrix(X_train), as.matrix(y_train), alpha = 0, type.measure = "mse", family="gaussian")
+````
+
+To identify what value to use for lambda, we could plot the function using our model fit.ridge$lambda.min, but below we'll use the s="lambda.min" argument to save time.  The graph will be shown below after all models.
+
+```{r}
+
+fitted.ridge.train <- predict(fit.ridge, newx = data.matrix(X_train), s="lambda.min")
+
+
+fitted.ridge.test <- predict(fit.ridge, newx = data.matrix(X_test), s="lambda.min")
+
+cat("Train coefficient: ", cor(as.matrix(y_train), fitted.ridge.train)[1])
+cat("\nTest coefficient: ", cor(as.matrix(X_test), fitted.ridge.test)[1])
+```
+As we can see above, the train and test coefficients are 0.77 and -0.364
+
+
+
+
+#LASSO Regression - Least Absolute Shrinkage and Selection Operator
+
+According to statisticshowto.com, lasso regression is a type of linear regression that uses shrinkage - which shrinks datapoints towards a central point, such as the mean. 
+
+
+
+Now we'll use the glmnet() function to fit the LASSO regression model and specify alpha=1.  We'll specific s="lambda.min" to find the best lambda. 
+
+```{r}
+fit.lasso <- cv.glmnet(as.matrix(X_train), as.matrix(y_train), type.measure="mse", alpha=1, family="gaussian")
+
+
+fitted.lasso.train <- predict(fit.lasso, newx = data.matrix(X_train), s="lambda.min")
+
+fitted.lasso.test <- predict(fit.lasso, newx = data.matrix(X_test), s="lambda.min")
+
+cat("Train coefficient: ", cor(as.matrix(y_train), fitted.lasso.train)[1])
+cat("\nTest coefficient: ", cor(as.matrix(X_test), fitted.lasso.test)[1])
+
+```
+As we can see above, the train and test coefficients are 0.83 and -0.24.
+
+
+#Elastic Net Regression
+
+According to machinelearningmastery.com, Elastic Net is an extension of linear regression that will add regulirization penalties to the loss function during training. 
+
+```{r}
+fit.elnet <- glmnet(as.matrix(X_train), as.matrix(y_train), family="gaussian", alpha=.5)
+
+fit.elnet.cv <- cv.glmnet(as.matrix(X_train), as.matrix(y_train), type.measure="mse", alpha=.5,
+                          family="gaussian")
+
+fitted.elnet.train <- predict(fit.elnet.cv, newx = data.matrix(X_train), s="lambda.min")
+
+fitted.elnet.test <- predict(fit.elnet.cv, newx = data.matrix(X_test), s="lambda.min")
+
+cat("Train coefficient: ", cor(as.matrix(y_train), fitted.elnet.train)[1])
+cat("\nTest coefficient: ", cor(as.matrix(X_test), fitted.elnet.test)[1])
+
+```
+
+
+Plot MSE
+```{r message=FALSE, warning=FALSE}
+par(mfrow=c(3,1))
+
+plot(fit.lasso, xvar="lambda")
+plot(fit.ridge, xvar="lambda")
+plot(fit.elnet.cv, xvar="lambda")
+
+```
+
+
+
+
+
+
+
+
+
+
 
 ### Non Linear Regression Model
 
