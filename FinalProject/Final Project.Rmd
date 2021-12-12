@@ -439,7 +439,7 @@ plot(fit.elnet.cv, xvar="lambda")
 
 Non Linear Regression models do not follow the $y=ax+b$ approach.  It allows for flexibility in the model to fit non linear trends in data.  
 
-We will go over three examples of non linear regression: Neural Networks, K-Nearest Neighbors (KNN), Support Vector Machines (SVM), and Multivaraite Adaptive Regression Splines (MARS).
+We will go over four examples of non linear regression: Neural Networks, K-Nearest Neighbors (KNN), Support Vector Machines (SVM), and Multivaraite Adaptive Regression Splines (MARS).
 
 
 #### Model4: Neural Networks
