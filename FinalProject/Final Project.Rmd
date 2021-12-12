@@ -490,12 +490,11 @@ The **KNN** model predicts a new sample for regression using the **K**-closest d
 
 $$(\sum^p_{j=1}(x_{aj}-x_{bj})^q)^{1/q}$$
 
-The `train` function in the **caret** package uses the `knn` method, centers and scales 
+The `train` function in the **caret** package uses the `knn` method.
 
 ```{r}
 knnFit <- train(X_train, y_train,
                    method = 'knn',
-                   preProc = c('center','scale'),
                    tuneLength = 14,
                    trControl = trainControl(method = 'cv'))
 
@@ -539,7 +538,6 @@ We will again use the **caret** package and apply a **radial SVM** model.  This 
 ```{r}
 svmRFit <- train(X_train, y_train,
                    method = 'svmRadial',
-                   preProc = c('center','scale'),
                    tuneLength = 14,
                    trControl = trainControl(method = 'cv'))
 
