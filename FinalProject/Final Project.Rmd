@@ -437,20 +437,13 @@ plot(fit.elnet.cv, xvar="lambda")
 
 ### Model Group B: Non Linear Regression Model
 
-Non Linear Regression models do not follow the $y=ax+b$ approach.  It allows for flexibility in the model to fit non linear trends in data.  
-
-We will go over four examples of non linear regression: Neural Networks, K-Nearest Neighbors (KNN), Support Vector Machines (SVM), and Multivaraite Adaptive Regression Splines (MARS).
-
-
-#### Model4: Neural Networks
-
 Neural Networks are regression techniques inspired by theories of how the brain works (neurons signalling to one another).  The outcome is modeled by an input layer and an intermediary set of unobserved values, hidden units, made up of linear combinations of the original predictors.  
 
-The parameters used in the model include number of hidden units, decay, number of iterations to find parameter estimates, and the number of paramters used by the model.
+The parameters used in the model include number of hidden units, decay, number of iterations to find parameter estimates, and the number of parameters used by the model.
 
 
-```{r}
-# averaging a simple Neural Network with 5 hidden units
+```{r warning=FALSE}
+# simple average Neural Network with 5 hidden units
 nnetAvg <- avNNet(X_train, y_train,
                   size = 5,
                   decay = 0.01,
@@ -459,7 +452,6 @@ nnetAvg <- avNNet(X_train, y_train,
                   trace = FALSE,
                   maxit = 500,
                   MaxNWts = 5 * (ncol(X_train) + 1) +5+1)
-
 nnetAvg
 ```
 
@@ -468,7 +460,6 @@ nnetAvg
 
 ```{r}
 varimp <- varImp(nnetAvg)
-
 varimp %>%
   arrange(desc(Overall)) %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
@@ -479,7 +470,6 @@ varimp %>%
 ```{r}
 nnetPred <- predict(nnetAvg, newdata = X_test)
 nnetPredPerf <- postResample(pred = nnetPred, obs = y_test)
-
 nnetPredPerf['Family'] <- 'NonLinear'
 ```
 
@@ -490,15 +480,14 @@ The **KNN** model predicts a new sample for regression using the **K**-closest d
 
 $$(\sum^p_{j=1}(x_{aj}-x_{bj})^q)^{1/q}$$
 
-The `train` function in the **caret** package uses the `knn` method.
+The `train` function in the **caret** package uses the `knn` method. 
 
 ```{r}
 knnFit <- train(X_train, y_train,
                    method = 'knn',
+                   preProc = c('center','scale'),
                    tuneLength = 14,
                    trControl = trainControl(method = 'cv'))
-
-knnFit$finalModel
 
 knnFit
 ```
@@ -513,7 +502,6 @@ plot(knnFit)
 
 ```{r}
 varimp <- varImp(knnFit)
-
 varimp$importance %>%
   arrange(desc(Overall)) %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
@@ -524,11 +512,10 @@ varimp$importance %>%
 ```{r}
 knnPred <- predict(knnFit, newdata = X_test)
 knnPredPerf <- postResample(pred = knnPred, obs = y_test)
-
 knnPredPerf['Family'] <- 'NonLinear'
 ```
 
-#### Model6: Suppost Vector Machines
+#### Model6: Support Vector Machines
 
 SVM regression models try to find a regression line where each data point is within a threshold.  The error is a parameter of the model and it will then try to minimize the coefficients used in the model. This allows the model eliminate features and have greater interpretability.
 
@@ -538,9 +525,9 @@ We will again use the **caret** package and apply a **radial SVM** model.  This 
 ```{r}
 svmRFit <- train(X_train, y_train,
                    method = 'svmRadial',
+                   preProc = c('center','scale'),
                    tuneLength = 14,
                    trControl = trainControl(method = 'cv'))
-
 svmRFit
 ```
 
@@ -548,7 +535,6 @@ svmRFit
 
 ```{r}
 varimp <- varImp(svmRFit)
-
 varimp$importance %>%
   arrange(desc(Overall)) %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
@@ -559,7 +545,6 @@ varimp$importance %>%
 ```{r}
 svmRPred <- predict(svmRFit, newdata = X_test)
 svmRPredPerf <- postResample(pred = svmRPred, obs = y_test)
-
 svmRPredPerf['Family'] <- 'NonLinear'
 ```
 
@@ -587,7 +572,6 @@ plotmo(marsFit)
 
 ```{r}
 varimp <- varImp(marsFit)
-
 varimp %>%
   arrange(desc(Overall)) %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
@@ -599,7 +583,6 @@ varimp %>%
 ```{r}
 marsPred <- predict(marsFit, newdata = X_test)
 marsPredPerf <- postResample(pred = marsPred, obs = y_test)
-
 marsPredPerf['Family'] <- 'NonLinear'
 ```
 
