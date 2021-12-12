@@ -607,21 +607,7 @@ marsPredPerf['Family'] <- 'NonLinear'
 
 ### Model Group C: Trees and Boosting Model
 
-#### Model8: Gradient Boosting Method
 
-The boosting method is uses trees in a sequential pattern. The successive tree is developed using information from the previous tree to minimize its error.
-
-The boosting method has three tuning parameters, number of trees, shrinkage parameter, and number of splits in a tree.
-
-We will be using the stochastic gradient boosting in our model. This approach resamples the observations and columns in each iteration.
-
-The xgbTree method will create a model by choosing the best tuning parameters.
-
-Here, we can see our parameters that are used in the model.
-
-```{r}
-gbmTune$bestTune
-```
 
 ## Conclusion
 
