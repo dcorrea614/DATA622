@@ -42,34 +42,91 @@ library(rpart)
 library(rpart.plot)
 library(naniar)
 library(xgboost)
+library(usmap)
 library(DiagrammeR)
+library(earth)
+library(plotly)
+library(wordcloud)
+library(RColorBrewer)
+library(glmnet)
 ```
 
 
 ## Background
 
-For this assignment, we will be working with a very interesting mental health dataset from a real-life research project. All identifying information, of course, has been removed. The attached spreadsheet has the data (the tab name “Data”). The data dictionary is given in the second tab. You can get as creative as you want. The assignment is designed to really get you to think about how you could use different methods.
-
-The target variable is **'Violent Crimes Per Population'**.
-
-## Data Dictionary
-
+For the final project, we will be working with the **Communities & Crime** dataset from communities within United States. The data combines socio-economic data from the 1990 US Census, law enforcement data from the 1990 US LEMAS survey, and crime data from the 1995 FBI UCR. 
 
 ## Problem Statement
 
+Every major violent crime that makes it to the news brings new notions and beliefs that tend to alter the opinion of the public in terms of the safety of their neighborhood and the socio-economic factors that influence the normal functioning of society. For example, with the increase in the number of race-related crimes in our society, it has become imperative to understand whether the racial profile has anything to do with crime rates in a region. Other concerns besides race, include socio-economic status, religious beliefs and the percentage of the population that is composed of immigrants.
 
-## Dataset
+Understanding where violent crimes occur in terms of the socio-economic, environmental, and demographic characteristics of the reported regions can be crucial to deciphering why these crimes occur. These characteristics may very well help in predicting in advance where violent crimes are likely to occur through predictive models that can quantify the risk associated with a region. This would greatly help in city planning through the deployment of police forces effectively in order to quell the imminent danger. Determining the key drivers that contribute to the rise in violent crimes will provide invaluable inputs in terms of urban development and design of policing practices.
+
+## Dataset Overview
+
+The ‘Communities and Crime’ dataset made available by the University of California, Irvine’s Machine Learning Repository provides an excellent opportunity to test some of these pre-conceived notions prevalent in our society today with regard to race and crimes. It could also be helpful in building predictive models that can help better in city planning and crime reduction. Although the sources in this dataset date back to 1990 and 1995, the directional insights we get from it should still hold true.
+
+Many variables are included in the dataset so that algorithms that select or learn weights for attributes could be tested. However, clearly unrelated attributes were not included; attributes were picked if there was any plausible connection to crime (N=122), plus the attribute to be predicted (Per Capita Violent Crimes). The variables included in the dataset involve the community, such as the percent of the population considered urban, and the median family income, and involving law enforcement, such as per capita number of police officers, and percent of officers assigned to drug units.
+
+The per capita violent crimes variable was calculated using population and the sum of crime variables considered violent crimes in the United States: murder, rape, robbery, and assault. There was apparently some controversy in some states concerning the counting of rapes. These resulted in missing values for rape, which resulted in incorrect values for per capita violent crime. These cities are not included in the dataset. Many of these omitted communities were from the midwestern USA.
+
+Data is described below based on original values. All numeric data was normalized into the decimal range 0.00-1.00 using an Unsupervised, equal-interval binning method. Attributes retain their distribution and skew (hence for example the population attribute has a mean value of 0.06 because most communities are small). E.g. An attribute described as 'mean people per household' is actually the normalized (0-1) version of that value.
+
+The normalization preserves rough ratios of values WITHIN an attribute (e.g. double the value for double the population within the available precision - except for extreme values (all values more than 3 SD above the mean are normalized to 1.00; all values more than 3 SD below the mean are nromalized to 0.00)).
+
+However, the normalization does not preserve relationships between values BETWEEN attributes (e.g. it would not be meaningful to compare the value for whitePerCap with the value for blackPerCap for a community)
+
+A limitation was that the LEMAS survey was of the police departments with at least 100 officers, plus a random sample of smaller departments. For our purposes, communities not found in both census and crime datasets were omitted. Many communities are missing LEMAS data.
+
+The target variable is **'Violent Crimes Per Population'**.
+
+### Dataset Repository
+
+![UCI Machine Learning Repository Link] (https://archive.ics.uci.edu/ml/datasets/communities+and+crime)
+
+### Data Dictionary
+
+The crime dataset has **128 attributes**. Below is a brief description of all attributes along with data type details -
+
+```{r warning=FALSE, message=FALSE}
+datadict <- read_csv('https://raw.githubusercontent.com/dcorrea614/DATA622/main/FinalProject/data_dictionary.csv')
+
+datadict %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="100%",height="500px")
+
+```
+
+### Supplimentary Data
+
+We also loaded the supplimentary state level dataset from UCI Machine Learning repository to enrich our crime dataset with state level information -
+
+```{r}
+states <- read.csv('https://raw.githubusercontent.com/dcorrea614/DATA622/main/FinalProject/states.csv')
+
+names(states) <- c("state_code","state","stateName","stateENS")
+
+states %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="80%",height="300px")
+
+```
+
+## Dataset Preview
 
 ```{r warning=FALSE, message=FALSE}
 dataset <- read_csv('https://raw.githubusercontent.com/dcorrea614/DATA622/main/FinalProject/communities.data.csv')
 head(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
   scroll_box(width="100%",height="300px")
+
+dim(dataset)
 ```
 
+The dataset has 1994 observations and 128 variable. 
 
 ### Descriptive Dataset Summary
 
-We see that *?* is used in place of NA in the dataset.  We need to convert these entries into *NA* values to begin our analysis.
+The dataset contains no duplicate records, but it contains a lot of missing values, represented by “?”. We need to convert these entries into *NA* values to begin our analysis.
+
+The first 5 non-predictive variables represent the name of the community, the state in which it is located, the county code, the community code, and the fold number for non-random 10 fold cross validation. A summary of the remaining variables is below:
 
 ```{r warning=FALSE, message=FALSE}
 # 
@@ -84,7 +141,7 @@ summary(dataset)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "
 
 Based on the above descriptive data summary, there are quite a few variables with missing values. So we conducted an analysis of all missing values in various attributes to identify proper imputation technique.
 
-```{r fig.height=4, message=FALSE, warning=FALSE}
+```{r fig.height=6, message=FALSE, warning=FALSE}
 ## Counts of missing data per feature
 dataset_missing_counts <- data.frame(apply(dataset, 2, function(x) length(which(is.na(x)))))
 dataset_missing_pct <- data.frame(apply(dataset, 2,function(x) {sum(is.na(x)) / length(x) * 100}))
@@ -103,7 +160,10 @@ ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))
   labs(title = 'Missing Counts') +
   theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
 ```
-There are 22 variables missing 84% of data and 2 variables missing roughly 59% of data.  Imputation on these varibales is a risk as the majority of the data is missing.  Instead we can remove these variables from our dataset. 
+
+There are 22 variables missing 84% of data and 2 variables missing roughly 59% of data. These variables with a high proportion of NA's (greater than 50%) were removed as these were deemed practically useless in prediction or data exploration. Imputation on these varibales is a risk as the majority of the data is missing. Most of these variables came from the 1990 Law Enforcement Management and Admin Stats survey (Lemas). 
+
+Also, we are going to remove the 'fold' variable orginally added for cross validation.
 
 ```{r}
 colremove <- dataset_missing_counts %>%
@@ -116,7 +176,11 @@ dataset <- dataset[,!(colnames(dataset) %in% colremove$Feature)]
 
 # removing the folds variable as it was placed for cross validation
 dataset <- dataset[,names(dataset) != 'fold']
+
 ```
+
+We also did check for presence of any degenerate variables in the dataset and removed them. 
+
 
 ```{r}
 # capturing the degenerate variables
@@ -127,39 +191,135 @@ colnames(dataset[,degenCols])
 
 # removing from the dataset
 dataset <- dataset[,-degenCols]
+```
 
-dataset <- dataset[,!colnames(dataset) == 'communityname']
+We removed the 'communityname' from the dataset and removed rows with NA values in 'OtherPerCap' column -
+
+```{r}
+#dataset <- dataset[,!colnames(dataset) == 'communityname']
 
 dataset <- dataset %>%
   mutate(OtherPerCap = as.numeric(OtherPerCap))
 
 #remove missing brand => df3
 dataset <- dataset[!is.na(dataset$OtherPerCap), ]
+
+dim(dataset)
 ```
+
+
+After removing these variables, our dataset reduced to 101 variables.
 
 ## Exploratory Data Analysis
 
-### Graphing on Map
+To start with our visual exploratory data analysis, we joined the crime dataset with state level enrichment dataset -
 
 ```{r}
-# aggregating the Average ViolentCrimesPerPop by State ID (FIPS)
-avgViolentCrimeByState <- dataset %>%
-  group_by(state) %>%
-  summarise(avgViolentCrimesPerPop = mean(ViolentCrimesPerPop)) %>%
-  mutate(fips = str_pad(state,2,pad='0'))
+# Join with states dataframe
+dataset1 <- left_join(dataset, states, 
+              by = c("state" = "state_code"))
 
-plot_usmap(data = avgViolentCrimeByState, values = 'avgViolentCrimesPerPop', color = 'red') +
-  scale_fill_continuous(
-    low = 'white',high = 'red',name = 'Average Violent Crimes per 100K Population'
-  ) + theme(legend.position = 'right')
+dataset1 <- rename(dataset1, state_abbr = state.y)
+```
+
+### Violent Crime Rate Analysis
+
+District of Columbia leads in terms of violent crime rates in the United States. Los Angeles has the second highest crime rate after DC, followed by Louisiana, South Carolina, Maryland and Florida. DC, however, have much higher crime rates in comparison to the other states, which have roughly almost the same crime rate. However, New York and Florida have very high populations in comparison to the others.
+
+```{r fig.height=6, fig.width=9}
+# aggregating the Average ViolentCrimesPerPop by State ID (FIPS)
+crime_rate_by_state <- dataset1 %>%
+  group_by(state_abbr) %>%
+  summarise(AvgCrimesRate = mean(ViolentCrimesPerPop)) %>% 
+  mutate(rank = dense_rank(desc(AvgCrimesRate)))
+
+crime_rate_by_state %>% filter(rank <=5) %>% arrange(rank) %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="60%",height="250px")
+
+#Violent Crime Rates by States
+crime_rate_by_state$hover <- with(crime_rate_by_state, paste(state_abbr,'<br>', "Crime Rank:",rank))
+l <- list(color = toRGB("white"), width = 2)
+g <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showlakes = TRUE,
+  lakecolor = toRGB('blue')
+)
+
+p <- crime_rate_by_state %>% plot_geo(locationmode = 'USA-states') %>%
+  add_trace(
+    z = ~AvgCrimesRate, text = ~hover, locations = ~state_abbr, 
+    color = ~AvgCrimesRate, colors = 'Blues'
+  ) %>%
+ colorbar(title = "Crime Rate/100K Population") %>%
+  layout(
+    title = 'Violent Crime Rates in the United States',
+    geo = g
+  )
+
+p
+
 ```
 
 
+### Map of percentage of black population in the US
 
-### Distributions
+More than 65% of the population of DC belongs to the African-American community. Other states with high percentage of African-Americans are Mississippi, Georgia, Louisiana, and Delaware. These are some of the states with the highest violent crime rates. No wonder crimes bring about perceptions of race. We need to investigate this further.
 
-### Correlation Plot: Multicollinearity Check
+```{r fig.height=6, fig.width=9}
+#Percentage of African-American population by state
+black_pop_by_state <- dataset1 %>%
+  group_by(state_abbr) %>%
+  summarise(AvgBlackPopRate = mean(racepctblack )) %>% 
+  mutate(rank = dense_rank(desc(AvgBlackPopRate)))
 
+black_pop_by_state %>% filter(rank <=5) %>% arrange(rank) %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="60%",height="250px")
+
+black_pop_by_state$hover <- with(black_pop_by_state, paste(state_abbr,'<br>', "Black Population  Rank:",rank))
+l <- list(color = toRGB("white"), width = 2)
+g <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showlakes = TRUE,
+  lakecolor = toRGB('blue')
+)
+
+p <- black_pop_by_state %>% plot_geo(locationmode = 'USA-states') %>%
+  add_trace(
+    z = ~AvgBlackPopRate, text = ~hover, locations = ~state_abbr, 
+    color = ~AvgBlackPopRate, colors = 'Greens'
+  ) %>%
+ colorbar(title = "%Black") %>%
+  layout(
+    title = 'Percentage of African-American Population',
+    geo = g
+  )
+p
+```
+
+
+### Word Cloud of most dangerous communities
+
+We conclude our initial Visual Data Exploration by taking a look at the communities with the highest violent crime rates. Interestingly, Camden City in New Jersey showed at the top on the list of most dangerous communities in the US in terms of violent crime rates. Other dangerous cities when it comes to violent crime rates are BatonRouge and Alexandria  in Louisiana, Baltimore, Atlanta, Anniston, Bessemer and Birmingham in Alabma, Atlantic City. 
+
+```{r warning=FALSE, message=FALSE}
+#Word Cloud of Communities with the highest crime rates
+
+communityCrime <- dataset1 %>% select(communityname,state_abbr, population, ViolentCrimesPerPop) %>% 
+  mutate(Place = paste(communityname,state_abbr, sep = ", ")) %>% 
+  group_by(Place) %>% 
+  summarise(AvgCrimesRate = mean(ViolentCrimesPerPop)) %>% 
+  arrange(desc(AvgCrimesRate)) %>% 
+  head(15)
+
+par(mfrow = c(1,1))
+par(mar = rep(0,4))
+set.seed(1)
+wordcloud(words = communityCrime$Place, freq = communityCrime$AvgCrimesRate, scale=c(3,0.01),
+          random.order=FALSE,
+          colors=brewer.pal(8, "Dark2"))
+```
 
 
 
@@ -168,6 +328,7 @@ plot_usmap(data = avgViolentCrimeByState, values = 'avgViolentCrimesPerPop', col
 We are going to do a 75-25% split for training and test purposes. 
 
 ```{r}
+dataset <- dataset[,!colnames(dataset) == 'communityname']
 sample = sample.split(dataset$ViolentCrimesPerPop, SplitRatio = 0.75)
 
 
@@ -187,27 +348,21 @@ X_test <- test[,-101]
 
 ## Modeling
 
-
-### Linear Regression Model - Ridge and LASSO
-
-
+### Model Group A: Linear Regression Model - Ridge and LASSO
 
 The glmnet package allows us to perform both the ridge and lasso regression models.  This library requires the response variable to be a vector and the predictor variables to be a class of data.matrix.
-```{r}
-library(glmnet)
-```
 
-
-#Ridge Regression
+#### Model1: Ridge Regression
 
 Ridge regression is a model used "when the number of predictor variables in a set exceeds the number of observations", or when a dataset suffers from multicollinearity.  According to stats, with ridge regression, often predictor variables used in a regression are highly correlated.  When they are, the regression coefficient of any one variable can depend on which other predictor variables are included in the model, and which ones are left out. 
 
 
 Now we'll use the glmnet() function to fit the ridge regression model and specify alpha=0.
+
 ```{r}
 
 fit.ridge <- cv.glmnet(as.matrix(X_train), as.matrix(y_train), alpha = 0, type.measure = "mse", family="gaussian")
-````
+```
 
 To identify what value to use for lambda, we could plot the function using our model fit.ridge$lambda.min, but below we'll use the s="lambda.min" argument to save time.  The graph will be shown below after all models.
 
@@ -221,16 +376,13 @@ fitted.ridge.test <- predict(fit.ridge, newx = data.matrix(X_test), s="lambda.mi
 cat("Train coefficient: ", cor(as.matrix(y_train), fitted.ridge.train)[1])
 cat("\nTest coefficient: ", cor(as.matrix(X_test), fitted.ridge.test)[1])
 ```
+
 As we can see above, the train and test coefficients are 0.77 and -0.364
 
 
+#### Model2: LASSO Regression - Least Absolute Shrinkage and Selection Operator
 
-
-#LASSO Regression - Least Absolute Shrinkage and Selection Operator
-
-According to statisticshowto.com, lasso regression is a type of linear regression that uses shrinkage - which shrinks datapoints towards a central point, such as the mean. 
-
-
+According to statisticshowto.com, lasso regression is a type of linear regression that uses shrinkage - which shrinks data points towards a central point, such as the mean. 
 
 Now we'll use the glmnet() function to fit the LASSO regression model and specify alpha=1.  We'll specific s="lambda.min" to find the best lambda. 
 
@@ -246,10 +398,11 @@ cat("Train coefficient: ", cor(as.matrix(y_train), fitted.lasso.train)[1])
 cat("\nTest coefficient: ", cor(as.matrix(X_test), fitted.lasso.test)[1])
 
 ```
+
 As we can see above, the train and test coefficients are 0.83 and -0.24.
 
 
-#Elastic Net Regression
+#### Model3: Elastic Net Regression
 
 According to machinelearningmastery.com, Elastic Net is an extension of linear regression that will add regulirization penalties to the loss function during training. 
 
@@ -269,7 +422,8 @@ cat("\nTest coefficient: ", cor(as.matrix(X_test), fitted.elnet.test)[1])
 ```
 
 
-Plot MSE
+#### Plot MSE
+
 ```{r message=FALSE, warning=FALSE}
 par(mfrow=c(3,1))
 
@@ -281,22 +435,14 @@ plot(fit.elnet.cv, xvar="lambda")
 
 
 
-
-
-
-
-
-
-
-
-### Non Linear Regression Model
+### Model Group B: Non Linear Regression Model
 
 Non Linear Regression models do not follow the $y=ax+b$ approach.  It allows for flexibility in the model to fit non linear trends in data.  
 
 We will go over three examples of non linear regression: K-Nearest Neighbors (KNN), Support Vector Machines (SVM), and Multivaraite Adaptive Regression Splines (MARS).
 
 
-#### Neural Networks
+#### Model4: Neural Networks
 
 Neural Networks are regression techniques inspired by theories of how the brain works (neurons signalling to one another).  The outcome is modeled by an input layer and an intermediary set of unobserved values, hidden units, made up of linear combinations of the original predictors.  
 
@@ -318,7 +464,7 @@ nnetAvg
 ```
 
 
-###### Variable Importance
+##### Variable Importance
 
 ```{r}
 varimp <- varImp(nnetAvg)
@@ -328,7 +474,7 @@ varimp %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
-###### Prediction Performance
+##### Prediction Performance
 
 ```{r}
 nnetPred <- predict(nnetAvg, newdata = X_test)
@@ -337,7 +483,7 @@ nnetPredPerf <- postResample(pred = nnetPred, obs = y_test)
 nnetPredPerf['Family'] <- 'NonLinear'
 ```
 
-#### K-Nearest Neighbors
+#### Model5: K-Nearest Neighbors
 
 The **KNN** model predicts a new sample for regression using the **K**-closest data points from the training set.  The method uses the Euclidean distance or the straight-line distance between samples.
 
@@ -364,7 +510,7 @@ knnFit
 plot(knnFit)
 ```
 
-###### Variable Importance
+##### Variable Importance
 
 ```{r}
 varimp <- varImp(knnFit)
@@ -374,7 +520,7 @@ varimp$importance %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
-###### Prediction Performance
+##### Prediction Performance
 
 ```{r}
 knnPred <- predict(knnFit, newdata = X_test)
@@ -383,7 +529,7 @@ knnPredPerf <- postResample(pred = knnPred, obs = y_test)
 knnPredPerf['Family'] <- 'NonLinear'
 ```
 
-#### Suppost Vector Machines
+#### Model6: Suppost Vector Machines
 
 SVM regression models try to find a regression line where each data point is within a threshold.  The error is a parameter of the model and it will then try to minimize the coefficients used in the model. This allows the model eliminate features and have greater interpretability.
 
@@ -400,7 +546,7 @@ svmRFit <- train(X_train, y_train,
 svmRFit
 ```
 
-###### Variable Importance
+##### Variable Importance
 
 ```{r}
 varimp <- varImp(svmRFit)
@@ -410,7 +556,7 @@ varimp$importance %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
-###### Prediction Performance
+##### Prediction Performance
 
 ```{r}
 svmRPred <- predict(svmRFit, newdata = X_test)
@@ -419,9 +565,9 @@ svmRPredPerf <- postResample(pred = svmRPred, obs = y_test)
 svmRPredPerf['Family'] <- 'NonLinear'
 ```
 
-#### Multivaraite Adaptive Regression Splines
+#### Model7:Multivaraite Adaptive Regression Splines (MARS)
 
-The Mars model finds *knots* to determine piece wise linear model where each new feature models an isolated portion of the data.  The predictor / cut point combination that has the smallest error is used for the model in an iterative process until a stopping point is reached.  
+The MARS model finds *knots* to determine piece wise linear model where each new feature models an isolated portion of the data.  The predictor / cut point combination that has the smallest error is used for the model in an iterative process until a stopping point is reached.  
 
 
 We will use the **earth** package to generate this MARS model.
@@ -439,7 +585,7 @@ summary(marsFit)
 plotmo(marsFit)
 ```
 
-###### Variable Importance
+##### Variable Importance
 
 ```{r}
 varimp <- varImp(marsFit)
@@ -450,7 +596,7 @@ varimp %>%
 ```
 
 
-###### Prediction Performance
+##### Prediction Performance
 
 ```{r}
 marsPred <- predict(marsFit, newdata = X_test)
@@ -459,6 +605,27 @@ marsPredPerf <- postResample(pred = marsPred, obs = y_test)
 marsPredPerf['Family'] <- 'NonLinear'
 ```
 
-### Trees and Boosting Model
+### Model Group C: Trees and Boosting Model
+
+#### Model8: Gradient Boosting Method
+
+The boosting method is uses trees in a sequential pattern. The successive tree is developed using information from the previous tree to minimize its error.
+
+The boosting method has three tuning parameters, number of trees, shrinkage parameter, and number of splits in a tree.
+
+We will be using the stochastic gradient boosting in our model. This approach resamples the observations and columns in each iteration.
+
+The xgbTree method will create a model by choosing the best tuning parameters.
+
+Here, we can see our parameters that are used in the model.
+
+```{r}
+gbmTune$bestTune
+```
 
 ## Conclusion
+
+
+## References
+
+[1) A Study of Violent Crimes in US Communities](https://rstudio-pubs-static.s3.amazonaws.com/412546_2286f95f0fb048149c86f4ae0d39b46e.html)
