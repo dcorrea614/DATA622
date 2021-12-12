@@ -437,6 +437,12 @@ plot(fit.elnet.cv, xvar="lambda")
 
 ### Model Group B: Non Linear Regression Model
 
+Non Linear Regression models do not follow the y=ax+b approach. It allows for flexibility in the model to fit non linear trends in data.
+
+We will go over four examples of non linear regression: Neural Networks, K-Nearest Neighbors (KNN), Support Vector Machines (SVM), and Multivariate Adaptive Regression Splines (MARS).
+
+#### Model4: Neural Networks
+
 Neural Networks are regression techniques inspired by theories of how the brain works (neurons signalling to one another).  The outcome is modeled by an input layer and an intermediary set of unobserved values, hidden units, made up of linear combinations of the original predictors.  
 
 The parameters used in the model include number of hidden units, decay, number of iterations to find parameter estimates, and the number of parameters used by the model.
