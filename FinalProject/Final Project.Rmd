@@ -596,7 +596,7 @@ marsPredPerf['Family'] <- 'NonLinear'
 
 #### Decision Tree
 
-Decision Trees are a type of Supervised Machine Learning method where the data is continuously split according to a certain parameter. The tree can be explained by two entities, namely decision nodes and leaves. The leaves are the decisions or the final outcomes. And the decision nodes are where the data is split. Since our target variable is continuous, we will be building a regression tree. However, it is also important to keep in mind that decision trees maybe more appropriate when the outcome is binary.
+Decision Trees are a type of Supervised Machine Learning method where the data is continuously split according to a certain parameter. The tree can be explained by two entities, namely decision nodes and leaves. The leaves are the decisions or the final outcomes and the decision nodes are where the data is split. Since our target variable is continuous, we will be building a regression tree. 
 
 #### Decision Tree 1
 
@@ -614,7 +614,7 @@ printcp(dt)
   
 ```
 
-This tree was grown to full depth and therefore there might be too many variables. To achieve improved accuracy, we need to prune the tree using the cross-validation.
+To achieve improved accuracy, we need to prune the tree using the cross-validation.
 
 
 
@@ -658,16 +658,13 @@ The model accuracy seems to be very low, even after pruning the tree. This might
 
 ###  Random Forest
 
-Random forests are one the most popular machine learning algorithms. They can be used for classification or regression, deal with a large number of features, and generally are so successful because they provide a good predictive performance, low incidence of over-fitting, and easy interpret-ability
+Random forests are one the most popular machine learning algorithms. They can be used for classification or regression, deal with a large number of features, and generally are so successful because they provide a good predictive performance, low incidence of over-fitting, and easy interpret-ability.
 
 In creating the best random forest model, we want to minimize the OOB error rate by finding the optimal number of variables selected at each split, known as the mtry.  The below code finds the optimal mtry to use in our random forest model.
 
 ```{r}
 train2 <- as.data.frame(train)
 ```
-
-
-The below graph illustrates the importance of the variables used to predict the Violent Crimes Per Population.  The Mean Decrease Accuracy displays how much the model accuracy decreases if we drop the variable. Here, Percentage of kids born to never married is regarded as the most important variable by a wide margin.  The Mean Decrease Gini graph displays the variable importance on the Gini impurity index used for splitting trees. Again, Percentage of kids born to never married is the clear leader.
 
 ```{r}
 oob.err=double(101)
@@ -689,7 +686,7 @@ Ideally OOB error and test errors should line up - but in this case the test err
 varImpPlot(fit)
 ```
 
-The below graph illustrates the importance of the variables used to predict the Violent Crimes Per Population.  The Mean Decrease Accuracy displays how much the model accuracy decreases if we drop the variable. Here, Percentage of kids born to never married is regarded as the most important variable by a wide margin.  The Mean Decrease Gini graph displays the variable importance on the Gini impurity index used for splitting trees. Again, Percentage of kids born to never married is the clear leader.
+The above graph illustrates the importance of the variables used to predict the Violent Crimes Per Population.  The Mean Decrease Accuracy displays how much the model accuracy decreases if we drop the variable. Here, Percentage of kids born to never married is regarded as the most important variable by a wide margin.  The Mean Decrease Gini graph displays the variable importance on the Gini impurity index used for splitting trees. Again, Percentage of kids born to never married is the clear leader.
 
 ```{r}
 print(fit)
