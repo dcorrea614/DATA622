@@ -655,7 +655,12 @@ accuracy
 
 The model accuracy seems to be very low, even after pruning the tree. This might be because our output is continuous and non-binary. However, more often than not, trees do not give very good prediction errors. Therefore, we will build out a random forest models which tend to outperform trees in terms of prediction and misclassification errors.
 
+#### Model Summary
 
+```{r}
+PruneDTPredPerf <- postResample(pred = Prune_pred, obs = y_test)
+PruneDTPredPerf['Family'] <- 'Decision Tree'
+```
 ###  Random Forest
 
 Random forests are one the most popular machine learning algorithms. They can be used for classification or regression, deal with a large number of features, and generally are so successful because they provide a good predictive performance, low incidence of over-fitting, and easy interpret-ability.
@@ -690,6 +695,12 @@ The above graph illustrates the importance of the variables used to predict the 
 
 ```{r}
 print(fit)
+```
+#### Model Summary
+
+```{r}
+RandomPredPerf <- postResample(pred = pred, obs = y_test)
+RandomPredPerf['Family'] <- 'Decision Tree'
 ```
 
 ## Conclusion
