@@ -605,7 +605,108 @@ marsPredPerf['Family'] <- 'NonLinear'
 
 ### Model Group C: Trees and Boosting Model
 
+### Model Group C: Trees and Boosting Model
 
+#### Decision Tree
+
+Decision Trees are a type of Supervised Machine Learning method where the data is continuously split according to a certain parameter. The tree can be explained by two entities, namely decision nodes and leaves. The leaves are the decisions or the final outcomes. And the decision nodes are where the data is split. Since our target variable is continuous, we will be building a regression tree. However, it is also important to keep in mind that decision trees maybe more appropriate when the outcome is binary.
+
+#### Decision Tree 1
+
+We will do the decision tree with all variables first.
+```{r}
+dt <- rpart(ViolentCrimesPerPop~ ., 
+               data=as.data.frame(train))
+rpart.plot(dt, nn=TRUE)
+```
+
+Here are some of the details of the tree:
+
+```{r}
+printcp(dt)
+  
+```
+
+This tree was grown to full depth and therefore there might be too many variables. To achieve improved accuracy, we need to prune the tree using the cross-validation.
+
+
+
+```{r}
+plotcp(dt)
+dt$cptable
+```
+
+The plot above shows the cross validated errors against the complexity parameters.
+The curve is at its lowest at 7, so we will prune our tree to a size of 7. At size 7, the error is ~0.46 and cp is 0.0104.
+
+#### Decision Tree 2
+
+```{r}
+prune_dt=prune(dt,cp=0.0104)
+rpart.plot(prune_dt)
+```
+
+#### Predicting Pruned Tree on Test Data 
+
+```{r}
+test2<-as.data.frame(test)
+test2<- na.omit(test2)
+```
+
+```{r}
+Prune_pred <- predict(prune_dt, 
+                   test2)
+```
+
+#### Model Accuracy
+
+```{r}
+confMat <- table(test2$ViolentCrimesPerPop,Prune_pred)
+accuracy <- sum(diag(confMat))/sum(confMat)
+accuracy
+```
+
+The model accuracy seems to be very low, even after pruning the tree. This might be because our output is continuous and non-binary. However, more often than not, trees do not give very good prediction errors. Therefore, we will build out a random forest models which tend to outperform trees in terms of prediction and misclassification errors.
+
+
+###  Random Forest
+
+Random forests are one the most popular machine learning algorithms. They can be used for classification or regression, deal with a large number of features, and generally are so successful because they provide a good predictive performance, low incidence of over-fitting, and easy interpret-ability
+
+In creating the best random forest model, we want to minimize the OOB error rate by finding the optimal number of variables selected at each split, known as the mtry.  The below code finds the optimal mtry to use in our random forest model.
+
+```{r}
+train2 <- as.data.frame(train)
+```
+
+
+The below graph illustrates the importance of the variables used to predict the Violent Crimes Per Population.  The Mean Decrease Accuracy displays how much the model accuracy decreases if we drop the variable. Here, Percentage of kids born to never married is regarded as the most important variable by a wide margin.  The Mean Decrease Gini graph displays the variable importance on the Gini impurity index used for splitting trees. Again, Percentage of kids born to never married is the clear leader.
+
+```{r}
+oob.err=double(101)
+test.err=double(101)
+for (mtry in 1:101){
+  fit=randomForest(ViolentCrimesPerPop~.,data=train2,mtry=mtry,ntree=400, proximity=TRUE)
+ oob.err[mtry]=fit$mse[400]
+ pred=predict(fit, train2)
+ test.err[mtry]=with(train2, mean((ViolentCrimesPerPop-pred)^2))
+ cat(mtry," ")}
+matplot(1:mtry,cbind(test.err, oob.err),pch=19, col=c("red", "blue"), type="b",ylab
+="Mean Squared Error")
+legend("topright",legend=c("00B", "Test"),pch=19,col=c("red", "blue"))
+```
+
+Ideally OOB error and test errors should line up - but in this case the test error seems to be higher than the OOB.
+
+```{r}
+varImpPlot(fit)
+```
+
+The below graph illustrates the importance of the variables used to predict the Violent Crimes Per Population.  The Mean Decrease Accuracy displays how much the model accuracy decreases if we drop the variable. Here, Percentage of kids born to never married is regarded as the most important variable by a wide margin.  The Mean Decrease Gini graph displays the variable importance on the Gini impurity index used for splitting trees. Again, Percentage of kids born to never married is the clear leader.
+
+```{r}
+print(fit)
+```
 
 ## Conclusion
 
