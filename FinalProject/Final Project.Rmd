@@ -21,7 +21,7 @@ output:
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 ## Libraries
@@ -49,6 +49,8 @@ library(plotly)
 library(wordcloud)
 library(RColorBrewer)
 library(glmnet)
+library(Hmisc)
+library(car)
 ```
 
 
@@ -79,10 +81,6 @@ However, the normalization does not preserve relationships between values BETWEE
 A limitation was that the LEMAS survey was of the police departments with at least 100 officers, plus a random sample of smaller departments. For our purposes, communities not found in both census and crime datasets were omitted. Many communities are missing LEMAS data.
 
 The target variable is **'Violent Crimes Per Population'**.
-
-### Dataset Repository
-
-![UCI Machine Learning Repository Link] (https://archive.ics.uci.edu/ml/datasets/communities+and+crime)
 
 ### Data Dictionary
 
@@ -322,24 +320,135 @@ wordcloud(words = communityCrime$Place, freq = communityCrime$AvgCrimesRate, sca
 ```
 
 
+### Variable Removal
+
+We still have an extremely high number of variables in the dataset. To further remove variables, we measure the correlation of each independent variable against the dependent variable and remove the variables with low correlation to the independent variable. We removed variables with an absolute correlation of less than 0.25 to the independent variable. This vastly reduces the number of variables in the dataset to 54. We removed these variables as we felt that these variables would contribute very less to our final model. Besides, working with fewer variables help in better interpretation.
+
+```{r}
+
+dataset <- dataset[,!colnames(dataset) == 'communityname']
+
+#Running a correlation matrix
+res2 <- rcorr(as.matrix(dataset))
+
+flattenCorrMatrix <- function(cormat, pmat) {
+  ut <- upper.tri(cormat)
+  data.frame(
+    row = rownames(cormat)[row(cormat)[ut]],
+    column = rownames(cormat)[col(cormat)[ut]],
+    cor  =(cormat)[ut],
+    p = pmat[ut]
+  )
+}
+
+#Finding variables with low correlation to dependent variable
+correlation <- flattenCorrMatrix(res2$r, res2$P)
+correlation <- correlation %>% filter(column == "ViolentCrimesPerPop") %>% arrange(cor)
+remove <- correlation %>% filter(cor >= -0.25 & cor <= 0.25) %>% select(row)
+
+
+low.corr.dep <- c('HispPerCap','PctSpeakEnglOnly','RentMedian','MedRent','RentHighQ','state',
+'OwnOccLowQuart','whitePerCap','OwnOccMedVal','OwnOccHiQuart','AsianPerCap','PctSameHouse85',
+'pctWFarmSelf','PctWorkMom','OtherPerCap','PersPerOwnOccHous','MedYrHousBuilt','pctWRetire',
+'indianPerCap','PctBornSameState','PctEmplProfServ','PctEmplManu','PersPerOccupHous','householdsize','PctWorkMomYoungKids','PctSameState85','PctVacMore6Mos','racePctAsian','MedOwnCostPctIncNoMtg','agePct12t21','MedOwnCostPctInc','agePct65up','PctSameCity85','pctUrban','agePct16t24',
+'pctWSocSec','PersPerFam','agePct12t29','PctUsePubTrans','PctImmigRecent','PctForeignBorn',
+'LandArea','PctImmigRec5','PctRecentImmig','PctRecImmig5','PctImmigRec8','PersPerRentOccHous'
+)
+
+dataset<- dataset %>% select(-low.corr.dep)
+
+dim(dataset)
+```
+
+### Multi-collinearity
+
+For removing multi-collinearity, we selected pairs of independent variables with absolute correlations greater than 0.9. For deciding which variable to remove among the pairs of independent variables, we regressed the remaining independent variables against the dependent variable and found the variance inflation factor of each variable using the vif function from the rms package in R and the removed the independent variable from each pair of multi-collinear variables which had higher variance inflation factors. This reduced the number of variables in the dataset to 39. The logic for this was that the variables in a pair of multi-collinear variables contribute the same variance information to a model and hence only one of them (with the lower variance inflation factor) is required for modeling.
+
+```{r}
+#Now let's check for multicollinearity
+res2 <- rcorr(as.matrix(dataset))
+correlation <- flattenCorrMatrix(res2$r, res2$P)
+correlation <- correlation %>% mutate(abs_cor = abs(cor)) %>% arrange(desc(abs_cor)) %>% filter(abs_cor > 0.9) %>% select(row, column)
+
+correlation %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="50%",height="200px")
+
+#Let's run a simple linear regression to see if any more variables can be removed based on VIF
+
+LR_test <- lm(ViolentCrimesPerPop ~ ., dataset)
+
+vif_df <- data.frame(vif(LR_test)) 
+colnames(vif_df) <- c("VIF_Score")
+
+vif_df %>% arrange(desc(`VIF_Score`)) %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="50%",height="200px")
+
+```
+
+Next, we scan the above list of multi-collinear variables and remove the ones with higher VIF -
+
+```{r}
+remove.multicollinear <- c('PctRecImmig10', 'population', 'PctFam2Par', 'PctLargHouseOccup', 'FemalePctDiv', 'PctPersOwnOccup', 'medIncome', 'TotalPctDiv', 'PctBSorMore', 'PctNotHSGrad', 'NumUnderPov', 'medFamInc', 'numbUrban', 'PctKids2Par')
+
+dataset <- dataset %>% select(-remove.multicollinear)
+
+dim(dataset)
+
+```
+
+After removing the variables with high multi-collinearity, we end up with 40 variables.
+
+#### Correlation Plots
+
+As a final step before modeling, we created correlation plots to assess in advance the independent variables that will be most important in predicting the violent crime rates.
+
+##### Plot1:
+
+```{r fig.height=7, fig.width=7}
+corrMatrix <- round(cor(dataset[,c(1:13,40)]),4)
+corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
+```
+
+##### Plot2:
+
+```{r fig.height=7, fig.width=7}
+corrMatrix <- round(cor(dataset[,c(14:26,40)]),4)
+corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
+```
+
+##### Plot3:
+
+```{r fig.height=7, fig.width=7}
+corrMatrix <- round(cor(dataset[,c(27:39,40)]),4)
+corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
+```
+
+Using the correlation plots, we can say that the following socio-economic factors in a community influence the level of violent crime rates:
+
+ - Percentage of the population that is African-American
+ - Percentage of the population living under poverty line 
+ - Percentage of kids born to never married
+ - Percentage of households with public assistance income
+ - Percentage of people 16 and over, in the labor force, and unemployed
+ - Percentage of males who are divorced
+ - Percentage of occupied housing units without a phone
+ - Percentage of vacant housing that is boarded up
+
 
 ### Splitting Data: Train/Test
 
 We are going to do a 75-25% split for training and test purposes. 
 
 ```{r}
-dataset <- dataset[,!colnames(dataset) == 'communityname']
 sample = sample.split(dataset$ViolentCrimesPerPop, SplitRatio = 0.75)
 
 
 train = subset(dataset, sample == TRUE) %>% as.matrix()
 test = subset(dataset, sample == FALSE) %>% as.matrix()
 
-y_train <- train[,101]
-y_test <- test[,101]
+y_train <- train[,40]
+y_test <- test[,40]
 
-X_train <- train[,-101]
-X_test <- test[,-101]
+X_train <- train[,-40]
+X_test <- test[,-40]
 
 #head(train)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
 
@@ -347,6 +456,37 @@ X_test <- test[,-101]
 
 
 ## Modeling
+
+### Re-usable Code Components
+
+Before we start with modeling, we wanted to define some of the re-usable code components in the form of R functions -
+
+```{r}
+## Function for plotting the most important variables
+
+printVarImportance <- function(model_name, vImpDF, varNo){
+  # Rename columns
+  varImportance <-  tibble::rownames_to_column(vImpDF, "Variable")
+  colnames(varImportance)[2] <- "Importance"
+  
+  # Limit to Top N important variables 
+  varImportance <- varImportance %>% arrange(desc(`Importance`)) %>% head(varNo)
+  
+  # Create and assign Rank
+  rankImportance <- varImportance %>% mutate(Rank = paste0('#',dense_rank(desc(Importance))))
+  
+  # Plot output
+  ggplot(rankImportance, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat='identity', fill = 'steelblue') +
+  geom_label(aes(label = round(Importance,2))) +
+  geom_text(aes(x = Variable, y = 0.5, label = Rank),
+           hjust=1.2, vjust=0.55, size = 4, colour = 'red') +
+  labs(x = 'Variable') +
+  ggtitle(paste("Variable Importance in ", model_name, " Model")) +
+  coord_flip()
+}
+```
+
 
 ### Model Group A: Linear Regression Model - Ridge and LASSO
 
@@ -377,7 +517,15 @@ cat("Train coefficient: ", cor(as.matrix(y_train), fitted.ridge.train)[1])
 cat("\nTest coefficient: ", cor(as.matrix(X_test), fitted.ridge.test)[1])
 ```
 
-As we can see above, the train and test coefficients are 0.77 and -0.364
+As we can see above, the train and test coefficients are 0.81 and 0.76
+
+##### Prediction Performance
+
+```{r}
+ridgePredPerf <- postResample(pred = fitted.ridge.test , obs = y_test)
+ridgePredPerf['Family'] <- 'Linear Regression'
+ridgePredPerf['Model'] <- 'Ridge Regression'
+```
 
 
 #### Model2: LASSO Regression - Least Absolute Shrinkage and Selection Operator
@@ -399,7 +547,15 @@ cat("\nTest coefficient: ", cor(as.matrix(X_test), fitted.lasso.test)[1])
 
 ```
 
-As we can see above, the train and test coefficients are 0.83 and -0.24.
+As we can see above, the train and test coefficients are 0.81 and 0.76.
+
+##### Prediction Performance
+
+```{r}
+lassoPredPerf <- postResample(pred = fitted.lasso.test , obs = y_test)
+lassoPredPerf['Family'] <- 'Linear Regression'
+lassoPredPerf['Model'] <- 'Lasso Regression'
+```
 
 
 #### Model3: Elastic Net Regression
@@ -422,6 +578,15 @@ cat("\nTest coefficient: ", cor(as.matrix(X_test), fitted.elnet.test)[1])
 ```
 
 
+##### Prediction Performance
+
+```{r}
+elnetPredPerf <- postResample(pred = fitted.elnet.test , obs = y_test)
+elnetPredPerf['Family'] <- 'Linear Regression'
+elnetPredPerf['Model'] <- 'Elastic Net Regression'
+```
+
+
 #### Plot MSE
 
 ```{r message=FALSE, warning=FALSE}
@@ -432,7 +597,6 @@ plot(fit.ridge, xvar="lambda")
 plot(fit.elnet.cv, xvar="lambda")
 
 ```
-
 
 
 ### Model Group B: Non Linear Regression Model
@@ -471,12 +635,21 @@ varimp %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
+We identify the top 10 variables with the most importance to the prediction below -
+
+```{r}
+## Call Variable Importance Plot Function
+printVarImportance("Neural Network", varImp(nnetAvg), 10)
+```
+
+
 ##### Prediction Performance
 
 ```{r}
 nnetPred <- predict(nnetAvg, newdata = X_test)
 nnetPredPerf <- postResample(pred = nnetPred, obs = y_test)
-nnetPredPerf['Family'] <- 'NonLinear'
+nnetPredPerf['Family'] <- 'Non-Linear Regression'
+nnetPredPerf['Model'] <- 'Neural Network'
 ```
 
 #### Model5: K-Nearest Neighbors
@@ -513,12 +686,21 @@ varimp$importance %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
+We identify the top 10 variables with the most importance to the prediction below -
+
+```{r}
+## Call Variable Importance Plot Function
+printVarImportance("KNN", varImp(knnFit)$importance, 10)
+```
+
+
 ##### Prediction Performance
 
 ```{r}
 knnPred <- predict(knnFit, newdata = X_test)
 knnPredPerf <- postResample(pred = knnPred, obs = y_test)
-knnPredPerf['Family'] <- 'NonLinear'
+knnPredPerf['Family'] <- 'Non-Linear Regression'
+knnPredPerf['Model'] <- 'KNN'
 ```
 
 #### Model6: Support Vector Machines
@@ -546,12 +728,20 @@ varimp$importance %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
+We identify the top 10 variables with the most importance to the prediction below -
+
+```{r}
+## Call Variable Importance Plot Function
+printVarImportance("SVM", varImp(svmRFit)$importance, 10)
+```
+
 ##### Prediction Performance
 
 ```{r}
 svmRPred <- predict(svmRFit, newdata = X_test)
 svmRPredPerf <- postResample(pred = svmRPred, obs = y_test)
-svmRPredPerf['Family'] <- 'NonLinear'
+svmRPredPerf['Family'] <- 'Non-Linear Regression'
+svmRPredPerf['Model'] <- 'SVM'
 ```
 
 #### Model7:Multivaraite Adaptive Regression Splines (MARS)
@@ -583,22 +773,29 @@ varimp %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
+We identify the top 10 variables with the most importance to the prediction below -
+
+```{r}
+## Call Variable Importance Plot Function
+printVarImportance("MARS", varImp(marsFit), 10)
+```
 
 ##### Prediction Performance
 
 ```{r}
 marsPred <- predict(marsFit, newdata = X_test)
 marsPredPerf <- postResample(pred = marsPred, obs = y_test)
-marsPredPerf['Family'] <- 'NonLinear'
+marsPredPerf['Family'] <- 'Non-Linear Regression'
+marsPredPerf['Model'] <- 'MARS'
 ```
 
 ### Model Group C: Trees and Boosting Model
 
-#### Decision Tree
+#### Model8: Decision Tree
 
 Decision Trees are a type of Supervised Machine Learning method where the data is continuously split according to a certain parameter. The tree can be explained by two entities, namely decision nodes and leaves. The leaves are the decisions or the final outcomes and the decision nodes are where the data is split. Since our target variable is continuous, we will be building a regression tree. 
 
-#### Decision Tree 1
+#### Decision Tree1
 
 We will do the decision tree with all variables first.
 ```{r}
@@ -617,7 +814,6 @@ printcp(dt)
 To achieve improved accuracy, we need to prune the tree using the cross-validation.
 
 
-
 ```{r}
 plotcp(dt)
 dt$cptable
@@ -633,7 +829,7 @@ prune_dt=prune(dt,cp=0.0104)
 rpart.plot(prune_dt)
 ```
 
-#### Predicting Pruned Tree on Test Data 
+##### Predicting Pruned Tree on Test Data 
 
 ```{r}
 test2<-as.data.frame(test)
@@ -645,7 +841,7 @@ Prune_pred <- predict(prune_dt,
                    test2)
 ```
 
-#### Model Accuracy
+##### Model Accuracy
 
 ```{r}
 confMat <- table(test2$ViolentCrimesPerPop,Prune_pred)
@@ -653,15 +849,25 @@ accuracy <- sum(diag(confMat))/sum(confMat)
 accuracy
 ```
 
-The model accuracy seems to be very low, even after pruning the tree. This might be because our output is continuous and non-binary. However, more often than not, trees do not give very good prediction errors. Therefore, we will build out a random forest models which tend to outperform trees in terms of prediction and misclassification errors.
+The model accuracy seems to be very low, even after pruning the tree. This might be because our output is continuous and non-binary. However, more often than not, trees do not give very good prediction errors. Therefore, we will build out a random forest models which tend to outperform trees in terms of prediction and miss-classification errors.
 
-#### Model Summary
+##### Variable Importance
 
 ```{r}
-PruneDTPredPerf <- postResample(pred = Prune_pred, obs = y_test)
-PruneDTPredPerf['Family'] <- 'Decision Tree'
+## Call Variable Importance Plot Function
+printVarImportance("Decision Tree", data.frame(prune_dt$variable.importance), 10)
 ```
-###  Random Forest
+
+##### Prediction Performance
+
+```{r}
+dtreePredPerf <- postResample(pred = Prune_pred, obs = y_test)
+dtreePredPerf['Family'] <- 'Trees & Boosting'
+dtreePredPerf['Model'] <- 'Decision Tree'
+```
+
+
+#### Model9: Random Forest
 
 Random forests are one the most popular machine learning algorithms. They can be used for classification or regression, deal with a large number of features, and generally are so successful because they provide a good predictive performance, low incidence of over-fitting, and easy interpret-ability.
 
@@ -687,8 +893,14 @@ legend("topright",legend=c("00B", "Test"),pch=19,col=c("red", "blue"))
 
 Ideally OOB error and test errors should line up - but in this case the test error seems to be higher than the OOB.
 
-```{r}
+
+##### Variable Importance
+
+```{r fig.height=7}
 varImpPlot(fit)
+
+## Call Variable Importance Plot Function
+printVarImportance("Random Forest", varImp(fit), 10)
 ```
 
 The above graph illustrates the importance of the variables used to predict the Violent Crimes Per Population.  The Mean Decrease Accuracy displays how much the model accuracy decreases if we drop the variable. Here, Percentage of kids born to never married is regarded as the most important variable by a wide margin.  The Mean Decrease Gini graph displays the variable importance on the Gini impurity index used for splitting trees. Again, Percentage of kids born to never married is the clear leader.
@@ -696,16 +908,94 @@ The above graph illustrates the importance of the variables used to predict the 
 ```{r}
 print(fit)
 ```
-#### Model Summary
+
+
+##### Prediction Performance
 
 ```{r}
-RandomPredPerf <- postResample(pred = pred, obs = y_test)
-RandomPredPerf['Family'] <- 'Decision Tree'
+rfPredPerf <- postResample(pred = pred, obs = y_test)
+rfPredPerf['Family'] <- 'Trees & Boosting'
+rfPredPerf['Model'] <- 'Random Forest'
+ 
 ```
 
+#### Model10: Gradient Boosting Method
+
+The boosting method is uses trees in a sequential pattern. The successive tree is developed using information from the previous tree to minimize its error. The boosting method has three tuning parameters, number of trees, shrinkage parameter, and number of splits in a tree.
+
+We will be using the stochastic gradient boosting in our model. This approach resamples the observations and columns in each iteration. We’ll use the caret workflow, which invokes the **xgboost** package, to automatically adjust the model parameter values, and fit the final best boosted tree that explains the best our data.
+
+Here, we can see our parameters that are used in the model -
+
+```{r warning=FALSE, message=FALSE, include=FALSE}
+# Fit the model on the training set
+set.seed(123)
+gbm_model <- train(
+  ViolentCrimesPerPop ~., data = train, method = "xgbTree",
+  trControl = trainControl("cv", number = 10)
+  )
+```
+
+```{r}
+# Best tuning parameter
+gbm_model$bestTune %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+
+
+##### Variable Importance
+
+We identify the top 10 variables with the most importance to the prediction below -
+
+```{r}
+## Call Variable Importance Plot Function
+printVarImportance("XGBoost", varImp(gbm_model)$importance, 10)
+```
+
+
+Visualization of the first 3 trees used in the model.
+
+```{r}
+xgb.plot.tree(model = gbm_model$finalModel,trees = 1:3)
+```
+
+```{r}
+xgbmPred <- predict(gbm_model, newdata = X_test)
+xgbmPredPerf <- postResample(pred = xgbmPred, obs = y_test)
+xgbmPredPerf['Family'] <- 'Trees & Boosting'
+xgbmPredPerf['Model'] <- 'XGBoost'
+
+```
+
+## Model Summary
+
+```{r}
+modelSummaryDF <- rbind(ridgePredPerf, lassoPredPerf, elnetPredPerf, nnetPredPerf, knnPredPerf, svmRPredPerf, marsPredPerf, dtreePredPerf, rfPredPerf, xgbmPredPerf)
+
+SummaryDF <- modelSummaryDF[, c(4, 5, 1, 2, 3)]
+
+rownames(SummaryDF) <- NULL
+
+SummaryDF %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="100%",height="500px")
+```
+
+
+All the linear regression models - Ridge, Lasso and Elastic Net that we built turned out to be very good models with a multiple R2 of 65%+. Non-Linear regression models like MARS, SVM and KNN also had R2 of 64% and above. Amongst the Tree models, XGBoost performed the best with 63.8% R2. All the above-mentioned models have prediction powers in the same range. Decision tree is great for interpretation but significantly under-performs all other models. 
+
+The final model, random forest model has a high Percentage of variance explained of 65.2% and a low mean squared residual (0.019). 
+
+But purely based on R2, Ridge regression model is the best pick out of all the models that we have tried.
+
 ## Conclusion
+
+News related to violent crimes shake the foundations of our society from time to time and make us question our beliefs regarding the prophesied cultural, economic, and racial harmony in our society. With the increase in the number of recent incidents related to violent crimes, it has become imperative to re-evaluate the cause of these crimes based on the socio-economic built of our society. Increased computational power has enabled us to look at a large number of factors at once to determine how the relationships among them influence crime rates in our society. A data-driven approach is paramount to plan for the future and build our communities on the principles of trust and harmony.
+
+The Communities and Crime normalized Dataset from the UCI Machine Learning repository provides an excellent opportunity to look at how a myriad of socio-economic factors influence violent crime rates in our society. Using novel machine learning approaches, predictive models were built with high accuracy which pinpointed several factors that influence these crimes. One theme that arises, when assessing the most important factors, is marriage. Successful marriages contribute to the healthy development of children, who in turn become responsible citizens. Areas with high percentage of kids born to people who were never married, living in dense areas, with little-to-no schooling tend to exhibit high violent crime rates. Although the models point to racial factors, we believe that this has more to do with the relatively poor economic conditions of African Americans in comparison to those of Caucasians.
+
+Despite these contributions, the models developed here suffer from a serious case of over-fitting. Prioritizing generation of insights over building a predictive model, the entire dataset was utilized for both training and validation purposes, except in case of the random forest model which has been proposed for scaling purposes. The random forest model could be further optimized through hyper-parameter tuning to improve its predictive power. Post scaling, this model would need to be adjusted on a timely basis as more data becomes available. Further study in this area could explore other approaches such as Neural Networks to build models that do a better job at predicting violent crime rates.
 
 
 ## References
 
-[1) A Study of Violent Crimes in US Communities](https://rstudio-pubs-static.s3.amazonaws.com/412546_2286f95f0fb048149c86f4ae0d39b46e.html)
+![1) UCI Machine Learning Repository Link] (https://archive.ics.uci.edu/ml/datasets/communities+and+crime)
+
